@@ -21,7 +21,24 @@ for(let i=0;i<6;i++){for(const a of solutions[i])await page.locator(`[data-actio
 await page.reload();assert.equal(await page.locator('#level option:disabled').count(),0);
 await page.locator('#level').selectOption('2');await page.keyboard.press('ArrowRight');assert.match(await page.locator('#moves').innerText(),/^1 手/);await page.keyboard.press('z');assert.match(await page.locator('#moves').innerText(),/^0 手/);
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+// Forced colors removes the background differences that normally define the grid.
+// Keep all 16 path cells visible while preserving the dashed mailbox marker.
+await page.emulateMedia({forcedColors:'active'});
+assert.equal(await page.evaluate(()=>matchMedia('(forced-colors: active)').matches),true);
+for(const board of ['#playerBoard','#echoBoard']){
+  const cells=await page.locator(`${board} .cell`).evaluateAll(els=>els.map(el=>{
+    const s=getComputedStyle(el);return {border:s.borderTopStyle,width:parseFloat(s.borderTopWidth),color:s.borderTopColor,background:s.backgroundColor};
+  }));
+  assert.equal(cells.length,16);
+  for(const cell of cells){assert.equal(cell.border,'solid');assert.ok(cell.width>=1);assert.notEqual(cell.color,cell.background);}
+  const goal=await page.locator(`${board} .goal`).evaluate(el=>({outline:getComputedStyle(el).outlineStyle,marker:getComputedStyle(el,'::before').content}));
+  assert.equal(goal.outline,'dashed');assert.ok(goal.marker.includes('✉'));
+  assert.equal(await page.locator(`${board} .pawn`).innerText(),board==='#playerBoard'?'●':'◆');
+  for(const wall of await page.locator(`${board} .wall`).allTextContents())assert.equal(wall,'▧');
+}
+assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+await page.emulateMedia({forcedColors:'none'});
 assert.deepEqual(errors,[]);
 const blocked=await browser.newContext();await blocked.addInitScript(()=>{Object.defineProperty(window,'localStorage',{get(){throw Error('Storage blocked')}})});const p2=await blocked.newPage();await p2.goto(`http://127.0.0.1:${server.address().port}`);await p2.locator('[data-action="1"]').click();assert.match(await p2.locator('#moves').innerText(),/^1 手/);
-console.log('Browser: 6 wins, unlock persistence, undo, hint, keyboard, 320px layout and blocked localStorage passed.');
+console.log('Browser: 6 wins, unlock persistence, undo, hint, keyboard, 320px layout, forced-colors grid/mailboxes and blocked localStorage passed.');
 }finally{await browser?.close();await new Promise(r=>server.close(r))}
