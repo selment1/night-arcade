@@ -3,10 +3,10 @@
 Five small, Japanese, mobile-friendly browser games. No accounts, ads, analytics, runtime dependencies, or backend.
 
 - **こだま郵便** — original delayed-echo courier puzzle; six BFS-verified levels, wait, undo, hint.
-- **プリズムの小径** — rotate light paths through six puzzles.
-- **星座あわせ** — constellation pairs, two difficulties.
+- **プリズム回廊** — rotate light paths through six puzzles.
+- **星座の記憶** — constellation pairs, two difficulties.
 - **ほしの軌道** — reverse direction to dodge meteors.
-- **雨の庭** — catch rain and avoid hazards.
+- **あめつぶガーデン** — catch rain and avoid hazards.
 
 ## Play / develop
 
@@ -30,8 +30,10 @@ Browser viewport tests are not physical phone tests. Progress is stored locally,
 
 ## Publish
 
-`node scripts/deploy.mjs` runs checks, commits selected source files and pushes `main`, then publishes only `public/` to `gh-pages` without force-pushing. It requires authorized GitHub access and the local server for arcade tests. GitHub Pages source is `gh-pages` root. No paid infrastructure is required. Confirm Pages build and live browser checks after uploading.
+`node scripts/deploy.mjs` runs checks, commits selected source files and pushes `main`, then publishes only `public/` to `gh-pages` without force-pushing. It requires authorized GitHub access and starts its own isolated test servers. GitHub Pages source is `gh-pages` root. No paid infrastructure is required. Confirm Pages build and live browser checks after uploading.
 
 ## Design choices
 
 Existing option reviewed: [Phaser](https://github.com/phaserjs/phaser), an MIT HTML5 game framework. These small, bespoke mechanics use native DOM/Canvas to avoid shipping an engine; Playwright provides established browser verification. [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) supplies managed static hosting. All illustrations are CSS/SVG/Canvas geometry rather than third-party media.
+
+Storage keys: `night-arcade-echo-v1` (progress/best per stage), `night-prism-best` (highest completed stage), `night-memory-best-6` / `night-memory-best-8` (fewest pairs attempted), `night-arcade-orbit-v1` and `night-arcade-garden-v1` (high scores). Read/write failures show a session-only notice.
