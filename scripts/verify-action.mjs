@@ -30,6 +30,15 @@ for(const game of ['orbit','garden']){
  assert.equal(await page.evaluate(()=>elapsed),frozen);
  await page.locator('#start').click();
  assert.equal(await page.evaluate(()=>mode),'playing');
+ // A visible tab can lose focus to another application without visibilitychange.
+ const beforeBlur=await page.evaluate(()=>{window.dispatchEvent(new Event('blur'));return {elapsed,score}});
+ assert.equal(await page.evaluate(()=>mode),'paused',game+' pauses on window blur');
+ await page.waitForTimeout(100);
+ assert.deepEqual(await page.evaluate(()=>({elapsed,score})),beforeBlur,game+' freezes while unfocused');
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ assert.equal(await page.evaluate(()=>mode),'paused',game+' requires explicit resume');
+ await page.keyboard.press('Escape');
+ assert.equal(await page.evaluate(()=>mode),'playing');
  if(game==='orbit')await page.evaluate(()=>{meteors=[{a:angle,r:182,speed:0,size:22}];update(0)});
  else await page.evaluate(()=>{lives=1;items=[{x:basket,y:529,speed:0,hazard:true}];update(.001)});
  assert.equal(await page.evaluate(()=>mode),'over');
@@ -37,6 +46,6 @@ for(const game of ['orbit','garden']){
  const saved=await page.locator('#best').textContent();assert(Number(saved)>0);
  await page.locator('#start').click();assert.equal(await page.locator('#score').textContent(),'0');
  await page.reload();assert.equal(await page.locator('#best').textContent(),saved);
- console.log(`${game}: mobile layout, start, input, scoring, pause/resume, collision gameover, restart, best persistence PASS`);
+ console.log(`${game}: mobile layout, start, input, scoring, pause/resume, window blur freeze and explicit keyboard resume, collision gameover, restart, best persistence PASS`);
 }
 assert.deepEqual(errors,[]);await browser.close();
