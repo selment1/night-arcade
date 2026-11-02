@@ -65,7 +65,34 @@ for(const game of ['orbit','garden']){
   assert(!await page.evaluate(()=>keys.ArrowLeft),'last activation release stops movement');
   await page.evaluate(()=>document.activeElement.blur());
   console.log('garden: independent keyboard, pointer, and button activation ownership PASS');
-  await page.evaluate(()=>{keys.ArrowLeft=true;update(.04);keys.ArrowLeft=false});
+  // CDP supplies real trusted touch/pointer events, including per-contact capture.
+  const touch=await page.context().newCDPSession(page);
+  for(const [id,key,sign] of [['left','ArrowLeft',-1],['right','ArrowRight',1]]){
+   await page.locator('#'+id).scrollIntoViewIfNeeded();
+   const bounds=await page.locator('#'+id).boundingBox();
+   const contacts=[.3,.7].map((fraction,index)=>({
+    x:bounds.x+bounds.width*fraction,y:bounds.y+bounds.height/2,id:index+1,
+   }));
+   for(const first of [0,1]){
+    await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:contacts});
+    assert.equal(await page.evaluate(key=>directionInputs.get(key).size,key),2,`${id}: two distinct held contacts`);
+    // touchEnd's listed contacts are the contacts being released, not survivors.
+    await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[contacts[first]]});
+    assert.equal(await page.evaluate(key=>directionInputs.get(key).size,key),1,`${id}: one contact remains`);
+    const delta=await page.evaluate(()=>{target=basket=320;items=[];update(.04);return target-320});
+    assert(delta*sign>0,`${id}: releasing contact ${first} preserves the other contact's movement`);
+    await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    assert(!await page.evaluate(key=>keys[key],key),`${id}: final touch release stops movement`);
+   }
+   await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:contacts});
+   // CDP cancellation is all-contact only; it cannot model selective touch cancellation.
+   await touch.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
+   assert(!await page.evaluate(key=>keys[key],key),`${id}: browser touch cancellation clears movement`);
+  }
+  await touch.detach();
+  console.log('garden: real two-touch holds survive either release order; final release/cancel clears movement PASS');
+
+  await page.evaluate(()=>{target=basket=320;keys.ArrowLeft=true;update(.04);keys.ArrowLeft=false});
   assert((await page.evaluate(()=>target))<320);
  }
  // Pause decisions fire once per press, including browser-native Enter button clicks.
