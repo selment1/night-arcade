@@ -87,6 +87,28 @@ assert.equal(await page.locator('.open').count(),2);
 await page.locator('#restart').click();await page.waitForTimeout(1200);
 assert.equal(await page.locator('.open').count(),0);assert.equal(await page.locator('#turns').textContent(),'0');
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+// Forced colors must also recolor authored SVGs, not just the card background.
+const contrastPage=await browser.newPage({viewport:{width:320,height:780},forcedColors:'active',reducedMotion:'reduce'});
+try{
+ await contrastPage.addInitScript(()=>Math.random=()=>0);
+ await contrastPage.goto(url('memory'));
+ await contrastPage.locator('.card').nth(0).click();
+ await contrastPage.locator('.card').nth(1).click();
+ assert.equal(await contrastPage.locator('.open').count(),2);
+ assert.match(await contrastPage.locator('#status').textContent(),/違う星座/);
+ const contrast=await contrastPage.evaluate(()=>{
+  const card=document.querySelector('.card.open'),style=getComputedStyle(card);
+  return {stroke:getComputedStyle(card.querySelector('polyline')).stroke,fill:getComputedStyle(card.querySelector('circle')).fill,text:style.color,background:style.backgroundColor,transition:style.transitionDuration,overflow:document.documentElement.scrollWidth>innerWidth};
+ });
+ assert.equal(contrast.stroke,contrast.text,'constellation lines follow forced system text color');
+ assert.equal(contrast.fill,contrast.text,'constellation stars follow forced system text color');
+ assert.notEqual(contrast.stroke,contrast.background,'constellations remain visible against forced card background');
+ assert.equal(contrast.transition,'0s');
+ assert.equal(contrast.overflow,false);
+ await contrastPage.waitForTimeout(1200);
+ assert.equal(await contrastPage.locator('.open').count(),0);
+ assert.match(await contrastPage.locator('#status').textContent(),/次の2枚/);
+}finally{await contrastPage.close()}
 // Readable storage can retain an older record while writes fail (for example quota).
 // Give this case an isolated origin so no existing records or other tests are touched.
 const memoryHtml=await readFile('public/games/memory.html');
