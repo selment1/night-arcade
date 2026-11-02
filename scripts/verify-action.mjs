@@ -41,6 +41,30 @@ for(const game of ['orbit','garden']){
  }else{
   await page.evaluate(()=>{items=[{x:basket,y:529,speed:0,hazard:false}];update(.01)});
   assert.equal(await page.locator('#score').textContent(),'10');
+  // Each held input owns its direction until that particular input releases.
+  await page.evaluate(()=>{halt();document.activeElement.blur()});
+  const left=page.locator('#left');
+  const box=await left.boundingBox();
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  const movesLeft=async label=>assert(await page.evaluate(()=>{
+   target=basket=320;items=[];update(.04);return target<320;
+  }),label);
+  for(const release of ['keyboard','pointer']){
+   await page.keyboard.down('ArrowLeft');await page.mouse.down();
+   if(release==='keyboard')await page.keyboard.up('ArrowLeft');else await page.mouse.up();
+   await movesLeft(`releasing ${release} preserves the other held input`);
+   if(release==='keyboard')await page.mouse.up();else await page.keyboard.up('ArrowLeft');
+   assert(!await page.evaluate(()=>keys.ArrowLeft),'last release stops movement');
+  }
+  await left.focus();
+  await page.keyboard.down('Space');await page.keyboard.press('x');
+  await movesLeft('unrelated key release preserves held button activation');
+  await page.keyboard.down('Enter');await page.keyboard.up('Space');
+  await movesLeft('Space release preserves held Enter');
+  await page.keyboard.up('Enter');
+  assert(!await page.evaluate(()=>keys.ArrowLeft),'last activation release stops movement');
+  await page.evaluate(()=>document.activeElement.blur());
+  console.log('garden: independent keyboard, pointer, and button activation ownership PASS');
   await page.evaluate(()=>{keys.ArrowLeft=true;update(.04);keys.ArrowLeft=false});
   assert((await page.evaluate(()=>target))<320);
  }
@@ -77,9 +101,9 @@ for(const game of ['orbit','garden']){
  assert.equal(await page.evaluate(()=>mode),'playing');
  if(game==='garden'){
   // OS interruptions can swallow releases; manual pause can also happen on a second touch.
-  for(const input of ['keyboard','pointer'])for(const interruption of ['manual','blur','visibilitychange','pagehide']){
-   if(input==='keyboard')await page.keyboard.down('ArrowLeft');
-   else{const box=await page.locator('#left').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down()}
+  for(const input of ['keyboard','pointer','combined'])for(const interruption of ['manual','blur','visibilitychange','pagehide']){
+   if(input!=='pointer')await page.keyboard.down('ArrowLeft');
+   if(input!=='keyboard'){const box=await page.locator('#left').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down()}
    assert.equal(await page.evaluate(()=>keys.ArrowLeft),true,`${input} starts movement`);
    await page.evaluate(kind=>{
     if(kind==='manual')document.querySelector('#pause').click();
@@ -95,7 +119,8 @@ for(const game of ['orbit','garden']){
     cancelAnimationFrame(raf);raf=0;items=[];target=basket=320;update(.04);return target;
    });
    assert.equal(movement,320,`${input} does not stick after ${interruption}`);
-   if(input==='keyboard')await page.keyboard.up('ArrowLeft');else await page.mouse.up();
+   if(input!=='pointer')await page.keyboard.up('ArrowLeft');
+   if(input!=='keyboard')await page.mouse.up();
   }
   await page.locator('#pause').click();
   await page.locator('#left').focus();
