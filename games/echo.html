@@ -9,6 +9,7 @@
 <body><main>
 <header><a href="../index.html">← ゲーム一覧</a><span>NIGHT ARCADE / 01</span></header>
 <h1>こだま郵便</h1><p class="intro">一歩おくれて届く、ふたりの手紙。<br>あなたの「ひとつ前の指示」で、こだまが動く。</p>
+<p id="storageNotice" class="intro" role="status" hidden>このブラウザでは記録を保存できません。進み具合はこのページを開いている間だけ保持されます。</p>
 <div class="toolbar"><label>配達先 <select id="level" aria-label="ステージを選択"></select></label><span id="moves">0 手</span></div>
 <div class="boards"><section><div class="board-title"><b>● あなた</b><small>今の指示で動く</small></div><div id="playerBoard" class="board" role="img" aria-label="あなたの配達マップ"></div></section><section class="echo"><div class="board-title"><b>◆ こだま</b><small>前の指示で動く</small></div><div id="echoBoard" class="board" role="img" aria-label="こだまの配達マップ"></div></section></div>
 <p class="legend">✉ 点線のマスが郵便受け / ▧ は通れない壁</p>
@@ -18,7 +19,7 @@
 <div class="controls" aria-label="移動操作"><button class="up" data-action="0" aria-label="上へ">↑</button><button class="left" data-action="3" aria-label="左へ">←</button><button data-action="2" aria-label="下へ">↓</button><button data-action="1" aria-label="右へ">→</button><button class="wait" data-action="4" style="grid-column:2" aria-label="一手待つ">待つ</button></div>
 <div class="actions"><button id="undo">一手もどす</button><button id="reset">やり直す</button><button id="hint">次の一手</button></div>
 <details open><summary>遊び方 — 一歩おくれの約束</summary><p>① 矢印であなたが一歩動きます。同時に、こだまは<b>前のターンに押した矢印</b>で動きます。最初のこだまは待ちます。</p><p>② 壁や端にぶつかると、その人だけ止まります。動けなかった指示も、こだまに伝わります。</p><p>③ <b>「待つ」</b>であなたを止めても、こだまは前の指示で動けます。ふたりが<b>同時にそれぞれの ✉</b>に立てば配達完了！</p><p>最初の配達：右へ3回 →「待つ」で手紙が届きます。<br>キーボード：矢印 / WASD・<kbd>Space</kbd> 待つ・<kbd>Z</kbd> もどす・<kbd>R</kbd> やり直す。時間制限はありません。</p></details>
-<footer>オリジナル設計の遅延パズル · 全6便 · 進み具合はこのブラウザに保存されます。</footer>
+<footer>オリジナル設計の遅延パズル · 全6便 · <span id="storageDescription">進み具合はこのブラウザに保存されます。</span></footer>
 </main>
 <script>
 'use strict';
@@ -31,9 +32,10 @@ const LEVELS = [
 {p:['....','.#..','..#.','....'],e:['....','..#.','.#..','....'],start:[0,3],goal:[3,12],par:12,name:'夜明けの最終便'}
 ];
 const $=id=>document.getElementById(id), names=['↑ 上','→ 右','↓ 下','← 左','・ 待つ'], deltas=[[0,-1],[1,0],[0,1],[-1,0],[0,0]], key='night-arcade-echo-v1';
-let saved={unlocked:1,best:{}};try{let v=JSON.parse(localStorage.getItem(key));if(v&&typeof v==='object'){saved.unlocked=Math.max(1,Math.min(6,Number.isInteger(v.unlocked)?v.unlocked:1));if(v.best&&typeof v.best==='object')for(let i=0;i<6;i++)if(Number.isInteger(v.best[i])&&v.best[i]>0)saved.best[i]=v.best[i];}}catch{}
+function storageUnavailable(){$('storageNotice').hidden=false;$('storageDescription').textContent='進み具合はこのページを開いている間だけ保持されます。';}
+let saved={unlocked:1,best:{}};try{let v=JSON.parse(localStorage.getItem(key));if(v&&typeof v==='object'){saved.unlocked=Math.max(1,Math.min(6,Number.isInteger(v.unlocked)?v.unlocked:1));if(v.best&&typeof v.best==='object')for(let i=0;i<6;i++)if(Number.isInteger(v.best[i])&&v.best[i]>0)saved.best[i]=v.best[i];}}catch{storageUnavailable()}
 let level=0,state=[],history=[],won=false;
-function save(){try{localStorage.setItem(key,JSON.stringify(saved))}catch{}}
+function save(){try{localStorage.setItem(key,JSON.stringify(saved))}catch{storageUnavailable()}}
 function options(){const chosen=level;$('level').replaceChildren(...LEVELS.map((l,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${i+1}. ${l.name}${i>=saved.unlocked?' 🔒':saved.best[i]?' ✓':''}`;o.disabled=i>=saved.unlocked;return o}));$('level').value=chosen;}
 function step(pos,a,map){const x=pos%4+deltas[a][0],y=Math.floor(pos/4)+deltas[a][1];return x<0||x>3||y<0||y>3||map[y][x]==='#'?pos:y*4+x;}
 function advance(s,a){const l=LEVELS[level];return [step(s[0],a,l.p),step(s[1],s[2],l.e),a];}
