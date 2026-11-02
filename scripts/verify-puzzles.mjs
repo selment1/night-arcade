@@ -2,6 +2,8 @@ import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 const page=await browser.newPage({viewport:{width:320,height:780}});
 const errors=[];page.on('pageerror',e=>errors.push(String(e)));
@@ -85,5 +87,43 @@ assert.equal(await page.locator('.open').count(),2);
 await page.locator('#restart').click();await page.waitForTimeout(1200);
 assert.equal(await page.locator('.open').count(),0);assert.equal(await page.locator('#turns').textContent(),'0');
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+// Readable storage can retain an older record while writes fail (for example quota).
+// Give this case an isolated origin so no existing records or other tests are touched.
+const memoryHtml=await readFile('public/games/memory.html');
+const memoryServer=createServer((req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(memoryHtml)});
+await new Promise(resolve=>memoryServer.listen(0,'127.0.0.1',resolve));
+const memoryContext=await browser.newContext();
+try{
+ await memoryContext.addInitScript(()=>{
+  Math.random=()=>0;
+  localStorage.setItem('night-memory-best-6','12');
+  localStorage.setItem('night-memory-best-8','16');
+  Storage.prototype.setItem=function(){throw new DOMException('Quota exceeded','QuotaExceededError')};
+ });
+ const memoryPage=await memoryContext.newPage();
+ memoryPage.on('pageerror',e=>errors.push(String(e)));
+ await memoryPage.goto(`http://127.0.0.1:${memoryServer.address().port}`);
+ assert.equal(await memoryPage.locator('#best').textContent(),'12 組','existing easy record loads');
+ for(const count of [6,8]){
+  await memoryPage.selectOption('#difficulty',String(count));
+  assert.equal(await memoryPage.locator('#best').textContent(),`${count*2} 組`,'existing difficulty record loads');
+  const deck=[...Array(count).keys(),...Array(count).keys()];
+  for(let i=deck.length-1;i>0;i--)[deck[i],deck[0]]=[deck[0],deck[i]];
+  for(let v=0;v<count;v++)for(let i=0;i<deck.length;i++)if(deck[i]===v)await memoryPage.locator('.card').nth(i).click();
+  assert(await memoryPage.locator('#result').isVisible());
+  assert.equal(await memoryPage.locator('#best').textContent(),`${count} 組`);
+  assert(await memoryPage.locator('#storage-note').isVisible(),'failed save is disclosed');
+  await memoryPage.locator('#restart').click();
+  assert.equal(await memoryPage.locator('#best').textContent(),`${count} 組`,'restart preserves improved in-session record after failed write');
+ }
+ for(const count of [6,8,6]){
+  await memoryPage.selectOption('#difficulty',String(count));
+  assert.equal(await memoryPage.locator('#best').textContent(),`${count} 組`,'difficulty switch preserves each improved in-session record');
+ }
+ assert.deepEqual(await memoryPage.evaluate(()=>[localStorage.getItem('night-memory-best-6'),localStorage.getItem('night-memory-best-8')]),['12','16'],'stored records remain untouched');
+}finally{
+ await memoryContext.close();
+ await new Promise(resolve=>memoryServer.close(resolve));
+}
 assert.deepEqual(errors,[]);
-await browser.close();console.log('PASS: prism all 6 levels solvable, keyboard rotation, restart, saved progress; memory both difficulties perfect wins, reset during mismatch, 320px layout, no page errors');
+await browser.close();console.log('PASS: prism all 6 levels solvable, keyboard rotation, restart, saved progress; memory both difficulties perfect wins, reset during mismatch, failed-write session records, 320px layout, no page errors');
