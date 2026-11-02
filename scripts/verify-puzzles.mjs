@@ -22,6 +22,30 @@ for(let stage=1;stage<=6;stage++){
 assert.equal(await page.locator('#level').textContent(),'1 / 6');
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 await page.reload();assert.equal(await page.locator('#best').textContent(),'6 / 6');
+// Enlarge every computed font, including explicit px sizes: root-only scaling misses these.
+const largeTextPage=await browser.newPage({viewport:{width:320,height:780}});
+largeTextPage.on('pageerror',e=>errors.push(String(e)));
+try{
+ await largeTextPage.goto(url('prism'));
+ await largeTextPage.evaluate(()=>{
+  const sizes=[...document.querySelectorAll('body,body *')].map(el=>[el,getComputedStyle(el).fontSize]);
+  for(const [el,size] of sizes)el.style.fontSize=`${parseFloat(size)*2}px`;
+ });
+ for(let stage=1;stage<=6;stage++){
+  for(let j=0;j<30&&!await largeTextPage.locator('#result').isVisible();j++)await largeTextPage.locator('#hint').click();
+  assert(await largeTextPage.locator('#result').isVisible(),`large-text stage ${stage} solvable`);
+  const bounds=await largeTextPage.locator('.stats strong').evaluateAll(nodes=>nodes.map(node=>{
+   const range=document.createRange();range.selectNodeContents(node);return range.getBoundingClientRect().toJSON();
+  }));
+  for(let i=0;i<bounds.length;i++)for(let j=i+1;j<bounds.length;j++){
+   const a=bounds[i],b=bounds[j];
+   assert(a.right+8<=b.left||b.right+8<=a.left||a.bottom<=b.top||b.bottom<=a.top,'large-text statistics stay visually separated');
+  }
+  assert(await largeTextPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'200% text fits 320px');
+  await largeTextPage.locator('#next').click();
+ }
+ assert.equal(await largeTextPage.locator('#level').textContent(),'1 / 6');
+}finally{await largeTextPage.close()}
 // Forced colors retain pipe orientation and a non-color cue for the powered path.
 for(const colorScheme of ['light','dark']){
 const prismContrast=await browser.newPage({viewport:{width:320,height:780},forcedColors:'active',colorScheme,reducedMotion:'reduce'});
