@@ -11,6 +11,14 @@ for(const game of ['orbit','garden']){
  await page.locator('#start').click();
  await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>mode),'playing');
+ // A queued frame timestamp can precede resume's performance.now() in the same frame.
+ const firstFrame=await page.evaluate(()=>{
+  reset();resume();cancelAnimationFrame(raf);raf=0;
+  frame(last-2);halt();return {score,elapsed};
+ });
+ assert.equal(firstFrame.score,0,game+' first resume frame must not produce negative score');
+ assert.equal(firstFrame.elapsed,0,game+' time cannot run backwards');
+ await page.evaluate(()=>resume());
  if(game==='orbit'){
   const before=await page.evaluate(()=>direction);
   await page.locator('#flip').click();
