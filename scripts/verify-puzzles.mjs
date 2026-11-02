@@ -22,6 +22,33 @@ for(let stage=1;stage<=6;stage++){
 assert.equal(await page.locator('#level').textContent(),'1 / 6');
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 await page.reload();assert.equal(await page.locator('#best').textContent(),'6 / 6');
+// Forced colors retain pipe orientation and a non-color cue for the powered path.
+for(const colorScheme of ['light','dark']){
+const prismContrast=await browser.newPage({viewport:{width:320,height:780},forcedColors:'active',colorScheme,reducedMotion:'reduce'});
+try{
+ await prismContrast.goto(url('prism'));
+ await prismContrast.locator('#hint').click();
+ assert(await prismContrast.locator('.tile.lit').count()>0);
+ assert(await prismContrast.locator('.tile:not(.lit)').count()>0);
+ const tiles=await prismContrast.locator('.tile').evaluateAll(nodes=>nodes.map(tile=>{
+  const style=getComputedStyle(tile),pipe=getComputedStyle(tile.querySelector('.pipe')),dot=tile.querySelector('.dot');
+  return {lit:tile.classList.contains('lit'),stroke:pipe.stroke,text:style.color,background:style.backgroundColor,border:style.borderStyle,filter:pipe.filter,dot:dot?getComputedStyle(dot).fill:null};
+ }));
+ for(const tile of tiles){
+  assert.equal(tile.stroke,tile.text,'pipe orientation follows system text color');
+  assert.notEqual(tile.stroke,tile.background,'pipes contrast with forced background');
+  assert.equal(tile.border,tile.lit?'double':'solid','powered tiles retain non-color cue');
+  assert.equal(tile.filter,'none','forced-color pipes have no pale glow');
+  if(tile.dot)assert.equal(tile.dot,tile.text,'entrance/exit markers follow system color');
+ }
+ const before=await prismContrast.locator('.tile').first().getAttribute('aria-label');
+ await prismContrast.locator('.tile').first().focus();await prismContrast.keyboard.press('Enter');
+ assert.notEqual(await prismContrast.locator('.tile').first().getAttribute('aria-label'),before);
+ for(let i=0;i<30&&!await prismContrast.locator('#result').isVisible();i++)await prismContrast.locator('#hint').click();
+ assert(await prismContrast.locator('#result').isVisible(),'forced-color puzzle remains solvable');
+ assert(await prismContrast.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+}finally{await prismContrast.close()}
+}
 // Holding Enter keeps targeting the now-hidden Next button: only a won stage may advance.
 const repeatPage=await browser.newPage();
 await repeatPage.goto(url('prism'));
