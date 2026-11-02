@@ -20,6 +20,36 @@ for(let stage=1;stage<=6;stage++){
 assert.equal(await page.locator('#level').textContent(),'1 / 6');
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 await page.reload();assert.equal(await page.locator('#best').textContent(),'6 / 6');
+// Holding Enter keeps targeting the now-hidden Next button: only a won stage may advance.
+const repeatPage=await browser.newPage();
+await repeatPage.goto(url('prism'));
+await repeatPage.evaluate(()=>{
+ window.progressWrites=[];
+ const setItem=Storage.prototype.setItem;
+ Storage.prototype.setItem=function(key,value){
+  if(key==='night-prism-best')window.progressWrites.push(value);
+  return setItem.call(this,key,value);
+ };
+});
+await repeatPage.locator('#hint').focus();
+for(let i=0;i<30;i++)await repeatPage.keyboard.down('Enter');
+await repeatPage.keyboard.up('Enter');
+assert.equal(await repeatPage.locator('#best').textContent(),'1 / 6');
+assert.equal(await repeatPage.evaluate(()=>window.progressWrites.length),1,'held completion input saves once');
+await repeatPage.locator('#next').focus();
+for(let i=0;i<30;i++)await repeatPage.keyboard.down('Enter');
+await repeatPage.keyboard.up('Enter');
+assert.equal(await repeatPage.locator('#level').textContent(),'2 / 6','held Enter on Next advances only the completed stage');
+assert.equal(await repeatPage.locator('#moves').textContent(),'0');
+await repeatPage.locator('#restart').focus();
+for(let i=0;i<30;i++)await repeatPage.keyboard.down('Enter');
+await repeatPage.keyboard.up('Enter');
+assert.equal(await repeatPage.locator('#level').textContent(),'2 / 6');
+assert.equal(await repeatPage.locator('#moves').textContent(),'0');
+assert.equal(await repeatPage.locator('#best').textContent(),'1 / 6','repeated restart preserves best');
+await repeatPage.reload();
+assert.equal(await repeatPage.locator('#best').textContent(),'1 / 6','keyboard progression preserves saved best');
+await repeatPage.close();
 // A rapid second tap on Next must not rotate a tile exposed by the layout shift.
 const touchPage=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
 await touchPage.goto(url('prism'));
