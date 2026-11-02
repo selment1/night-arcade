@@ -36,17 +36,6 @@ for(const game of ['orbit','garden']){
     assert.equal(await page.evaluate(()=>swaps),turns+2,`${target} released ${key} can flip again`);
    }
   }
-  for(let i=0;i<8;i++)await page.keyboard.down('Escape');
-  assert.equal(await page.evaluate(()=>mode),'paused','held Escape stays paused');
-  await page.keyboard.up('Escape');
-  await page.keyboard.press('Escape');
-  assert.equal(await page.evaluate(()=>mode),'playing','fresh Escape resumes');
-  await page.locator('#pause').focus();
-  for(let i=0;i<8;i++)await page.keyboard.down('Enter');
-  assert.equal(await page.evaluate(()=>mode),'paused','held Enter on pause stays paused');
-  await page.keyboard.up('Enter');
-  await page.keyboard.press('Enter');
-  assert.equal(await page.evaluate(()=>mode),'playing','fresh Enter on pause resumes');
   await page.evaluate(()=>{elapsed=5;update(.01)});
   assert.equal(await page.locator('#score').textContent(),'50');
  }else{
@@ -55,6 +44,21 @@ for(const game of ['orbit','garden']){
   await page.evaluate(()=>{keys.ArrowLeft=true;update(.04);keys.ArrowLeft=false});
   assert((await page.evaluate(()=>target))<320);
  }
+ // Pause decisions fire once per press, including browser-native Enter button clicks.
+ for(const focus of ['body','#pause'])for(const key of focus==='body'?['Escape']:['Escape','Enter']){
+  await page.evaluate(()=>{halt();document.activeElement.blur()});
+  if(focus==='#pause')await page.locator(focus).focus();
+  for(const expected of ['paused','playing']){
+   await page.keyboard.down(key);
+   assert.equal(await page.evaluate(()=>mode),expected,`${game} fresh ${key} on ${focus}`);
+   for(let i=0;i<7;i++){
+    await page.keyboard.down(key);
+    assert.equal(await page.evaluate(()=>mode),expected,`${game} held ${key} on ${focus} stays ${expected}`);
+   }
+   await page.keyboard.up(key);
+  }
+ }
+ console.log(`${game}: held Escape (body/button) and Enter (pause button) toggle once, release/repress works PASS`);
  await page.locator('#pause').click();
  assert.equal(await page.evaluate(()=>mode),'paused');
  const frozen=await page.evaluate(()=>elapsed);
