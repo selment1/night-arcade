@@ -20,6 +20,25 @@ for(let stage=1;stage<=6;stage++){
 assert.equal(await page.locator('#level').textContent(),'1 / 6');
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 await page.reload();assert.equal(await page.locator('#best').textContent(),'6 / 6');
+// A rapid second tap on Next must not rotate a tile exposed by the layout shift.
+const touchPage=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+await touchPage.goto(url('prism'));
+for(let j=0;j<30 && !await touchPage.locator('#result').isVisible();j++)await touchPage.locator('#hint').click();
+await touchPage.locator('#next').scrollIntoViewIfNeeded();
+const nextBox=await touchPage.locator('#next').boundingBox();
+const tapX=nextBox.x+nextBox.width/2,tapY=nextBox.y+nextBox.height/2;
+await touchPage.touchscreen.tap(tapX,tapY);
+await touchPage.waitForTimeout(60);
+await touchPage.touchscreen.tap(tapX,tapY);
+assert.equal(await touchPage.locator('#level').textContent(),'2 / 6');
+assert.equal(await touchPage.locator('#moves').textContent(),'0','rapid Next double tap does not rotate the new board');
+assert.equal(await touchPage.locator('#best').textContent(),'1 / 6');
+await touchPage.waitForTimeout(320);
+await touchPage.locator('.tile').first().tap();
+assert.equal(await touchPage.locator('#moves').textContent(),'1','new board accepts input after transition');
+await touchPage.reload();
+assert.equal(await touchPage.locator('#best').textContent(),'1 / 6','transition preserves saved progress');
+await touchPage.close();
 await page.addInitScript(()=>Math.random=()=>0);
 await page.goto(url('memory'));
 for(const count of [6,8]){
