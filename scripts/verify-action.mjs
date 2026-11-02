@@ -39,6 +39,38 @@ for(const game of ['orbit','garden']){
  assert.equal(await page.evaluate(()=>mode),'paused',game+' requires explicit resume');
  await page.keyboard.press('Escape');
  assert.equal(await page.evaluate(()=>mode),'playing');
+ if(game==='garden'){
+  // OS interruptions can swallow releases; manual pause can also happen on a second touch.
+  for(const input of ['keyboard','pointer'])for(const interruption of ['manual','blur','visibilitychange','pagehide']){
+   if(input==='keyboard')await page.keyboard.down('ArrowLeft');
+   else{const box=await page.locator('#left').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down()}
+   assert.equal(await page.evaluate(()=>keys.ArrowLeft),true,`${input} starts movement`);
+   await page.evaluate(kind=>{
+    if(kind==='manual')document.querySelector('#pause').click();
+    else if(kind==='visibilitychange'){
+     Object.defineProperty(document,'hidden',{configurable:true,value:true});
+     document.dispatchEvent(new Event(kind));delete document.hidden;
+    }else window.dispatchEvent(new Event(kind));
+   },interruption);
+   assert.equal(await page.evaluate(()=>mode),'paused');
+   // Resume before release, proving that it is pausing (not keyup/pointerup) that clears input.
+   await page.evaluate(()=>document.querySelector('#start').click());
+   const movement=await page.evaluate(()=>{
+    cancelAnimationFrame(raf);raf=0;items=[];target=basket=320;update(.04);return target;
+   });
+   assert.equal(movement,320,`${input} does not stick after ${interruption}`);
+   if(input==='keyboard')await page.keyboard.up('ArrowLeft');else await page.mouse.up();
+  }
+  await page.locator('#pause').click();
+  await page.locator('#left').focus();
+  for(const key of ['Space','Enter']){
+   await page.keyboard.down(key);
+   assert(!await page.evaluate(()=>keys.ArrowLeft),`${key} cannot arm movement while paused`);
+   await page.keyboard.up(key);
+  }
+  await page.locator('#start').click();
+  console.log('garden: held pointer/keyboard cleared across manual pause, blur, hidden tab, pagehide; paused Space/Enter ignored PASS');
+ }
  if(game==='orbit')await page.evaluate(()=>{meteors=[{a:angle,r:182,speed:0,size:22}];update(0)});
  else await page.evaluate(()=>{lives=1;items=[{x:basket,y:529,speed:0,hazard:true}];update(.001)});
  assert.equal(await page.evaluate(()=>mode),'over');
