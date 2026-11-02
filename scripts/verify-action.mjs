@@ -23,6 +23,30 @@ for(const game of ['orbit','garden']){
   const before=await page.evaluate(()=>direction);
   await page.locator('#flip').click();
   assert.equal(await page.evaluate(()=>direction),-before);
+  // Repeated keydown events represent one held key, not new player decisions.
+  await page.evaluate(()=>{halt();document.activeElement.blur()});
+  for(const target of ['body','#flip']){
+   if(target==='#flip')await page.locator(target).focus();
+   for(const key of target==='body'?['Space']:['Space','Enter']){
+    const turns=await page.evaluate(()=>swaps);
+    for(let i=0;i<8;i++)await page.keyboard.down(key);
+    await page.keyboard.up(key);
+    assert.equal(await page.evaluate(()=>swaps),turns+1,`${target} held ${key} flips once`);
+    await page.keyboard.press(key);
+    assert.equal(await page.evaluate(()=>swaps),turns+2,`${target} released ${key} can flip again`);
+   }
+  }
+  for(let i=0;i<8;i++)await page.keyboard.down('Escape');
+  assert.equal(await page.evaluate(()=>mode),'paused','held Escape stays paused');
+  await page.keyboard.up('Escape');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(()=>mode),'playing','fresh Escape resumes');
+  await page.locator('#pause').focus();
+  for(let i=0;i<8;i++)await page.keyboard.down('Enter');
+  assert.equal(await page.evaluate(()=>mode),'paused','held Enter on pause stays paused');
+  await page.keyboard.up('Enter');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(()=>mode),'playing','fresh Enter on pause resumes');
   await page.evaluate(()=>{elapsed=5;update(.01)});
   assert.equal(await page.locator('#score').textContent(),'50');
  }else{
