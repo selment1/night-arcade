@@ -1,0 +1,37 @@
+import {BOARD} from './board.js?v=expansion-1';
+import {CARD_DECKS} from './cards.js?v=expansion-1';
+const eur=n=>'€'+Number(n).toLocaleString('ja-JP');
+const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
+export function rentLabel(tile,state){
+ const p=state?.properties?.[tile.id];if(p?.mortgaged)return '€0（抵当中）';
+ if(!tile.price)return '対象外';
+ const count=type=>p?.owner?BOARD.filter(t=>t.type===type&&state.properties[t.id]?.owner===p.owner).length:1;
+ if(tile.type==='utility')return 'サイコロの合計 × '+tile.rent[count('utility')-1];
+ if(tile.type==='station')return eur(tile.rent[count('station')-1]);
+ const complete=p?.owner&&BOARD.filter(t=>t.group===tile.group).every(t=>state.properties[t.id]?.owner===p.owner);
+ return eur(tile.rent[p?.houses||0]*(complete&&!p.houses?2:1));
+}
+export function pricePanel(tile,state){
+ const panel=el('section',undefined,'deed-prices'),p=state?.properties?.[tile.id],owner=state?.players?.find(x=>x.id===p?.owner);panel.setAttribute('aria-label','価格と利用料');
+ const prices=el('dl');const row=(label,value)=>{prices.append(el('dt',label),el('dd',value));};
+ if(tile.price){row('購入価格（定価）',eur(tile.price));row(p?.owner?'現在の利用料':'基本の利用料',rentLabel(tile,state));row('所有者',owner?.name||'銀行（未購入）');row('抵当で受け取る額',eur(tile.mortgage));row('抵当の解除費用',eur(Math.ceil(tile.mortgage*1.1)));if(tile.houseCost){row('建築費（1段階）',eur(tile.houseCost));row('建物',p?.houses===5?'ホテル1軒':`家 ${p?.houses||0}軒`);}panel.append(prices);
+ const details=el('details'),summary=el('summary','利用料の一覧');details.append(summary);const table=el('table');table.className='rent-table';const caption=el('caption',tile.name+'の利用料');table.append(caption);const head=el('thead'),hr=el('tr');hr.append(el('th','条件'),el('th','金額'));head.append(hr);table.append(head);const body=el('tbody');let rows;
+ if(tile.type==='property')rows=[['更地',eur(tile.rent[0])],['同色をすべて所有・更地',eur(tile.rent[0]*2)],...tile.rent.slice(1).map((r,i)=>[i===4?'ホテル1軒':`家 ${i+1}軒`,eur(r)])];
+ else if(tile.type==='station')rows=tile.rent.map((r,i)=>[`${i+1}路線を所有`,eur(r)]);
+ else rows=tile.rent.map((r,i)=>[`${i+1}施設を所有`,'出目の合計 × '+r]);
+ for(const [condition,value]of rows){const tr=el('tr');tr.append(el('td',condition),el('td',value));body.append(tr);}table.append(body);details.append(table,el('p','抵当中は利用料なし。購入価格は定価です。競売の落札額とは異なる場合があります。','deed-note'));panel.append(details);
+ }else{row('購入', '購入できないマス');if(tile.type==='tax')row('支払い',eur(tile.amount));if(tile.type==='go')row('到着・通過の収入','€200');if(tile.type==='jail')row('釈放費用','€50（拘留中のみ）');if(tile.type==='parking')row('収支','€0');if(tile.type==='chance'||tile.type==='chest')row('収支','引いたカードによって変動');if(tile.type==='gotojail')row('効果','拘留所へ移動（出発点収入なし）');panel.append(prices);}
+ return panel;
+}
+export class DeedCollection{
+ constructor(select){this.select=select;this.key='';const section=el('details',undefined,'card my-deeds');section.id='my-deeds';const summary=el('summary','手持ちのカード');this.summary=summary;this.body=el('div',undefined,'deeds-body');section.append(summary,this.body);document.getElementById('players').after(section);
+ const directory=el('details',undefined,'space-directory');directory.id='space-directory';directory.append(el('summary','全40マスの名前・価格'));const search=el('input');search.type='search';search.placeholder='名前でマスを探す';search.setAttribute('aria-label','マスの名前を検索');const list=el('div',undefined,'space-list');for(const tile of BOARD){const button=el('button');button.type='button';button.dataset.spaceId=tile.id;button.append(el('span',`${tile.id}. ${tile.name}`),el('small',tile.price?eur(tile.price):tile.type==='tax'?'支払 '+eur(tile.amount):'イベント'));button.style.setProperty('--deed-color',tile.color||'#8a9e96');button.onclick=()=>this.select(tile.id,`[data-space-id="${tile.id}"]`);list.append(button);}const none=el('p','一致するマスはありません');none.hidden=true;search.oninput=()=>{const query=search.value.trim().toLocaleLowerCase();let visible=0;for(const b of list.children){b.hidden=!BOARD[Number(b.dataset.spaceId)].name.toLocaleLowerCase().includes(query);if(!b.hidden)visible++;}none.hidden=visible>0;};directory.append(search,list,none);document.querySelector('.board-section').append(directory);
+ this.sheet=el('dialog',undefined,'space-sheet');this.sheet.id='space-sheet';this.sheet.setAttribute('aria-label','選んだマスの詳細');const close=el('button','閉じる','sheet-close');close.type='button';close.onclick=()=>this.sheet.close();this.content=el('div',undefined,'sheet-content');this.sheet.append(close,this.content);this.sheet.onclick=e=>{if(e.target===this.sheet)this.sheet.close();};this.sheet.onclose=()=>{const target=document.querySelector(this.returnSelector||'#tile-select')||document.getElementById('tile-select');target?.focus({preventScroll:true});};document.body.append(this.sheet);
+ }
+ open(selector){this.returnSelector=selector;this.refreshSheet();if(!this.sheet.open)this.sheet.showModal();this.content.scrollTop=0;}
+ refreshSheet(){const source=document.getElementById('destination-photo');if(this.sheetKey===source.innerHTML)return;this.sheetKey=source.innerHTML;const top=this.content.scrollTop,copy=source.cloneNode(true);if(this.sheetTile===source.dataset.destinationId){for(const selector of ['.deed-prices details','.photo-credit']){const old=this.content.querySelector(selector),next=copy.querySelector(selector);if(old&&next)next.open=old.open;}}this.sheetTile=source.dataset.destinationId;copy.removeAttribute('id');copy.hidden=false;this.content.replaceChildren(copy);this.content.scrollTop=top;}
+ update(state,id){const me=state.players.find(p=>p.id===id);if(!me)return;const owned=BOARD.filter(t=>state.properties[t.id]?.owner===id),held=me.heldCards||[];this.summary.textContent=`手持ちのカード · 所有地 ${owned.length} / 保管 ${me.cards}`;const key=JSON.stringify([id,owned.map(t=>[t.id,state.properties[t.id]]),held,me.cards]);if(key!==this.key){this.key=key;this.body.replaceChildren();this.body.append(el('h3','所有地カード'));if(!owned.length)this.body.append(el('p','まだ所有地はありません。未購入の土地に止まって購入するか、競売で落札するとここに並びます。','deed-note'));const list=el('div',undefined,'owned-deed-list');for(const tile of owned){const p=state.properties[tile.id],b=el('button');b.type='button';b.dataset.ownedId=tile.id;b.style.setProperty('--deed-color',tile.color||'#8a9e96');b.append(el('strong',tile.name),el('span',`定価 ${eur(tile.price)} · ${p.mortgaged?'抵当中':tile.type==='station'?'交通拠点':tile.type==='utility'?'公共施設':p.houses===5?'ホテル1軒':p.houses?'家'+p.houses+'軒':'未建築'}`));b.onclick=()=>this.select(tile.id,`[data-owned-id="${tile.id}"]`);list.append(b);}this.body.append(list,el('h3','保管しているカード'));if(!me.cards)this.body.append(el('p','保管カードはありません。収入・支払いのカードは引いた時点で適用され、手元には残りません。','deed-note'));for(const heldCard of held){const def=CARD_DECKS[heldCard.type]?.find(c=>c.id===heldCard.id);const card=el('article',undefined,'held-card');card.dataset.heldType=heldCard.type;card.append(el('small',heldCard.type==='chance'?'チャンス':'旅人の手紙'),el('strong',def?.title||'釈放カード'),el('p','拘留中、自分の手番の最初に使うと、€50を払わずに釈放されます。'));this.body.append(card);}if(me.cards>held.length)this.body.append(el('p',`釈放カード ${me.cards-held.length}枚（出所の記録なし）`));}
+ let hint=this.body.querySelector('.held-use-hint');if(!hint){hint=el('p',undefined,'held-use-hint');this.body.append(hint);}hint.textContent=me.cards?(me.jail&&state.turn===state.players.indexOf(me)&&state.phase==='roll'?'今使えます。操作欄の「釈放カードを使う」を押してください。':'拘留中の自分の手番開始時に使えます。'):'';
+ if(this.sheet.open)this.refreshSheet();
+ }
+}
