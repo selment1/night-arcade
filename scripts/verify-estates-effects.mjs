@@ -26,5 +26,52 @@ try{
  await page.evaluate(()=>{state=structuredClone(state);state.revision=4;state.phase='over';state.winner='one';fx.observe(state);});await page.waitForFunction(()=>document.querySelector('.collection-stamp')?.textContent.includes('旅のチャンピオン'));await page.evaluate(()=>fx.reset());assert.equal(await page.locator('.collection-stamp').count(),0);
  await page.close();
  }
- console.log('PASS visual feedback: actual dice result, duplicate revision/action guard, card tap reveal/dismiss, income/payment, reduced motion.');
+ // Checkpoint prerequisite: only fully acknowledged presentations are exposed.
+ for(const mode of ['normal','quick','reduced']){
+ const page=await browser.newPage({reducedMotion:mode==='reduced'?'reduce':'no-preference'});
+ await page.setContent('<section id="game"><p id="dice"></p></section>');
+ const source=(await readFile(new URL('../public/estates/effects.js',import.meta.url),'utf8')).replace('export class JourneyEffects','window.JourneyEffects = class JourneyEffects');
+ await page.addScriptTag({content:source});
+ await page.evaluate(mode=>{
+ window.acknowledgments=[];
+ window.fx=new JourneyEffects({sound:{settings:{quick:mode==='quick'},play(){}},onAcknowledged:s=>{
+ acknowledgments.push({revision:s.revision,previous:fx.previous.revision,queued:fx.queue.map(x=>x.revision),money:s.players[0].money});
+ s.players[0].money=-999; // callback cannot mutate the retained snapshot
+ }});
+ window.state={revision:0,players:[{id:'one',name:'旅人',money:1500,position:0}],dice:[0,0],log:[]};
+ fx.observe(state);state.players[0].money=-1;
+ if(fx.acknowledgedState.players[0].money!==1500)throw Error('initial state was not detached');
+ const snapshot=fx.acknowledgedState;snapshot.players[0].money=-2;
+ if(fx.acknowledgedState.players[0].money!==1500)throw Error('accessor leaked mutable snapshot');
+ state={...fx.acknowledgedState,revision:1,cardEvents:[{type:'chance',text:'€100 を受け取る'}],players:[{id:'one',name:'旅人',money:1600,position:0}]};
+ fx.observe(state);
+ fx.observe({...state,revision:2,cardEvents:[],players:[{id:'one',name:'旅人',money:1550,position:0}]});
+ },mode);
+ await page.locator('.journey-card').waitFor();
+ assert.equal(await page.evaluate(()=>fx.acknowledgedState.revision),0,mode+': unopened card is not acknowledged');
+ await page.locator('.journey-card').click();
+ assert.equal(await page.evaluate(()=>fx.acknowledgedState.revision),0,mode+': reveal alone is not acknowledgment');
+ await page.locator('.journey-card').click();await page.locator('.payment-sheet').waitFor();
+ assert.equal(await page.evaluate(()=>fx.acknowledgedState.revision),0,mode+': pending payment is not acknowledged');
+ await page.locator('.payment-confirm').click();
+ assert.deepEqual(await page.evaluate(()=>acknowledgments[1]),{revision:1,previous:1,queued:[2],money:1600},mode+': acknowledge before advancing queue');
+ await page.locator('.payment-sheet').waitFor();
+ assert.equal(await page.evaluate(()=>fx.acknowledgedState.revision),1);
+ await page.locator('.payment-confirm').click();
+ assert.deepEqual(await page.evaluate(()=>acknowledgments.map(x=>x.revision)),[0,1,2]);
+ await page.evaluate(()=>{
+ fx.reset();if(fx.acknowledgedState!==null)throw Error('reset retained checkpoint');acknowledgments=[];
+ state={revision:0,players:[{id:'one',name:'旅人',money:1500,position:0}],dice:[0,0],log:[]};fx.observe(state);
+ // Plain zero-delay outcomes overlap: previous already points at unopened revision 3.
+ fx.observe({...state,revision:1});fx.observe({...state,revision:2});
+ fx.observe({...state,revision:3,cardEvents:[{text:'まだ未確認'}]});
+ });
+ await page.locator('.journey-card').waitFor();
+ assert.deepEqual(await page.evaluate(()=>acknowledgments.map(x=>x.revision)),[0,1,2],mode+': finish acknowledges captured state, not future previous');
+ assert.equal(await page.evaluate(()=>fx.acknowledgedState.revision),2);
+ await page.locator('.journey-card').click();await page.locator('.journey-card').click();
+ assert.deepEqual(await page.evaluate(()=>acknowledgments.map(x=>x.revision)),[0,1,2,3]);
+ await page.evaluate(()=>fx.reset());await page.close();
+ }
+ console.log('PASS visual feedback: actual dice result, duplicate revision/action guard, card tap reveal/dismiss, income/payment, reduced motion; detached acknowledged snapshots, initial/reset, queued pre-advance callback, unopened card/payment and zero-delay overlap across normal/quick/reduced modes.');
 }finally{await browser.close()}
