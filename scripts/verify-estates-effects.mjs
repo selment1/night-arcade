@@ -62,15 +62,21 @@ try{
  await page.evaluate(()=>{
  fx.reset();if(fx.acknowledgedState!==null)throw Error('reset retained checkpoint');acknowledgments=[];
  state={revision:0,players:[{id:'one',name:'旅人',money:1500,position:0}],dice:[0,0],log:[]};fx.observe(state);
- // Plain zero-delay outcomes overlap: previous already points at unopened revision 3.
+ // Plain zero-delay outcomes must serialize before the pending card.
  fx.observe({...state,revision:1});fx.observe({...state,revision:2});
  fx.observe({...state,revision:3,cardEvents:[{text:'まだ未確認'}]});
+ if(!fx.busy||fx.previous.revision!==1||fx.queue.map(s=>s.revision).join(',')!=='2,3')throw Error('zero-delay presentation did not gate later revisions');
  });
  await page.locator('.journey-card').waitFor();
  assert.deepEqual(await page.evaluate(()=>acknowledgments.map(x=>x.revision)),[0,1,2],mode+': finish acknowledges captured state, not future previous');
  assert.equal(await page.evaluate(()=>fx.acknowledgedState.revision),2);
+ assert.equal(await page.evaluate(()=>fx.busy),true,mode+': earlier zero-delay finish must not unlock unopened card');
+ await page.evaluate(()=>fx.observe({...state,revision:4}));
+ assert.deepEqual(await page.evaluate(()=>fx.queue.map(s=>s.revision)),[4],mode+': later revision waits for card acknowledgment');
  await page.locator('.journey-card').click();await page.locator('.journey-card').click();
- assert.deepEqual(await page.evaluate(()=>acknowledgments.map(x=>x.revision)),[0,1,2,3]);
+ await page.waitForFunction(()=>fx.acknowledgedState.revision===4);
+ assert.deepEqual(await page.evaluate(()=>acknowledgments.map(x=>x.revision)),[0,1,2,3,4]);
+ assert.equal(await page.evaluate(()=>fx.busy),false,mode+': final presentation releases gate');
  await page.evaluate(()=>fx.reset());await page.close();
  }
  console.log('PASS visual feedback: actual dice result, duplicate revision/action guard, card tap reveal/dismiss, income/payment, reduced motion; detached acknowledged snapshots, initial/reset, queued pre-advance callback, unopened card/payment and zero-delay overlap across normal/quick/reduced modes.');
