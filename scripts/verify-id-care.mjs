@@ -16,3 +16,19 @@ const a=harness(),b=harness();a.api.snapshot();b.api.snapshot();a.advance(3*HOUR
 // No CustomEvent global required; no mutation of legacy ledger.
 assert.equal(a.store.get('night-pet-v1'),a.original);
 console.log('ID care: growth, migration, sleep/wake, care, sickness, friendship, per-character save, offline simulation and storage protection passed.');
+
+// Malformed containers/entries must never be silently replaced or report durable saves.
+for (const pets of [[], {mori:'corrupted'}, {mori:null}, {mori:[]}, {kitsune:42}]) {
+  const raw=JSON.stringify({version:1,pets}),store=new Map([['night-pet-id-v1',raw]]);
+  const broken=harness({store});
+  assert.equal(broken.api.snapshot().storageOK,false);
+  assert.ok(broken.api.snapshot().notice);
+  assert.equal(broken.api.act('room','cloud').persistent,false);
+  assert.equal(broken.api.snapshot().room,'cloud');
+  assert.equal(store.get('night-pet-id-v1'),raw);
+  assert.equal(store.get('night-pet-v1'),broken.original);
+}
+const empty=harness({store:new Map([['night-pet-id-v1',JSON.stringify({version:1,pets:{}})]])});
+assert.equal(empty.api.act('room','sunset').persistent,true);
+assert.equal(harness({store:empty.store}).api.snapshot().room,'sunset');
+console.log('ID care malformed save protection and valid empty-save persistence passed.');
