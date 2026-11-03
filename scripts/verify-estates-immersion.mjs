@@ -14,6 +14,9 @@ try{
  await page.locator('.dice-stage').waitFor();assert.equal(await page.locator('.cube-face').count(),12);await page.screenshot({path:`artifacts/estates-immersive-${width}.png`});
  await page.waitForFunction(()=>document.querySelector('.dice-stage')?.classList.contains('settled'));assert.match(await page.locator('.dice-result').textContent(),/1 \+ 2 = 3/);assert(await page.getByRole('button',{name:/^購入 /}).isDisabled());
  await page.locator('.dice-stage').waitFor({state:'detached'});assert.match(await page.locator('.decision-preview').textContent(),/€1,440/);
+ await page.waitForFunction(()=>{const b=[...document.querySelectorAll('#actions button')].find(b=>b.textContent.startsWith('購入 '));return b&&!b.disabled&&document.querySelector('.journey-event')});
+ const arrivalLayout=await page.evaluate(()=>{const rect=s=>document.querySelector(s).getBoundingClientRect(),notice=rect('.journey-event');return ['.decision-preview','#actions'].map(s=>{const r=rect(s);return notice.bottom<=r.top||notice.top>=r.bottom||notice.right<=r.left||notice.left>=r.right})});assert(arrivalLayout.every(Boolean),'live arrival notice must not obscure purchase consequences or actions');
+ await page.screenshot({path:`artifacts/estates-arrival-clearance-${width}.png`,fullPage:true});
  await page.getByRole('button',{name:/^購入 /}).click();await page.locator('.collection-stamp').waitFor();assert.match(await page.locator('.collection-stamp').textContent(),/旅の拠点/);assert.match(await page.locator('#collection-progress').textContent(),/1 \/ 2/);
  await page.getByRole('button',{name:'ターンを終了',exact:true}).click();await page.waitForFunction(()=>estateNetwork.state.turn===0&&estateNetwork.state.revision>3,{},{timeout:20000});
  await page.locator('.sound-settings summary').click();await page.locator('#quick-effects').check();await page.locator('#music-volume').fill('0');await page.locator('#effects-volume').fill('0');
