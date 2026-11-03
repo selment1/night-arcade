@@ -27,7 +27,7 @@ Verified 2026-11-03 using Wikimedia Commons imageinfo/extmetadata and linked fil
 - File: `public/estates/photos/3.jpg`
 - View: アヌラーダプラのルワンウェリサーヤ大塔
 - Original title: SL_Anuradhapura_asv2020-01_img11_Ruwanwelisaya_Stupa.jpg
-- Creator: A.Savin
+- Creator: A.Savin, Wikipedia
 - License: FAL — http://artlibre.org/licence/lal/en
 - Source: https://commons.wikimedia.org/wiki/File:SL_Anuradhapura_asv2020-01_img11_Ruwanwelisaya_Stupa.jpg
 
@@ -210,3 +210,7 @@ Verified 2026-11-03 using Wikimedia Commons imageinfo/extmetadata and linked fil
 - Creator: Rmrfstar
 - License: CC BY-SA 3.0 — https://creativecommons.org/licenses/by-sa/3.0
 - Source: https://commons.wikimedia.org/wiki/File:The_western_sides_of_the_%C3%8Ele_de_la_Cit%C3%A9_and_the_Pont_Neuf,_14_July_2008.jpg
+
+## Store-distribution review
+
+Photo copyright licenses do not clear facility permissions, trademarks, architectural rights or all jurisdictions. See APPSTORE-READINESS.md for unresolved Uluru/Sydney/Taos and CC/FAL native-distribution review. Do not describe these22 images as fully cleared for App Store commercial distribution.

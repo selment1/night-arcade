@@ -1,6 +1,6 @@
 import {pricePanel,rentLabel} from './deeds.js?v=deeds-1';
 import {HERITAGE_INFO} from './heritage-info.js?v=expansion-1';
-import {HERITAGE_MEDIA} from './heritage-media.js?v=expansion-1';
+import {HERITAGE_MEDIA} from './heritage-media.js?v=rights-1';
 const root=document.getElementById('destination-photo');let currentId=null;
 export function renderDestination(tile,property,owner,state){
  const media=HERITAGE_MEDIA[tile.id];const key=[tile.id,property?.owner,property?.houses,property?.mortgaged,owner?.name,rentLabel(tile,state)].join(':');if(key===currentId)return;currentId=key;
