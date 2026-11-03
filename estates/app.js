@@ -1,20 +1,22 @@
 import {BOARD,act} from './engine.js?v=expansion-1';
 import {EstateNetwork} from './network.js?v=expansion-1';
-import {EstateSolo} from './solo.js?v=expansion-1';
-import {JourneyEffects} from './effects.js?v=expansion-1';
+import {EstateSolo} from './solo.js?v=immersive-1';
+import {JourneyEffects} from './effects.js?v=immersive-1';
+import {JourneyAudio} from './audio.js?v=immersive-1';
 import {renderDestination} from './photo-view.js?v=expansion-1';
 const $=id=>document.getElementById(id), colors=['#df765e','#5488c4','#aa77ba','#c79e33'], eur=n=>'€'+Number(n).toLocaleString('ja-JP');
 let selected=0,lastPosition='',auctionControls=null;
-const effects=new JourneyEffects();let pendingRollTimer;
+const sound=new JourneyAudio();sound.mount();const effects=new JourneyEffects({sound,board:BOARD});effects.onReady=()=>render();let pendingRollTimer;
 function dispatch(action){
- if(action.type==='roll'){if(!effects.startRoll())return;document.querySelectorAll('#actions button').forEach(b=>b.disabled=true);clearTimeout(pendingRollTimer);pendingRollTimer=setTimeout(()=>{effects.cancelPending();render();},6000);}
+ if(effects.busy)return;
+ if(action.type==='roll'){if(!effects.startRoll())return;if(!effects.short)document.querySelector('.board-section').scrollIntoView({block:'center',behavior:'instant'});document.querySelectorAll('#actions button').forEach(b=>b.disabled=true);clearTimeout(pendingRollTimer);pendingRollTimer=setTimeout(()=>{effects.cancelPending();render();},6000);}
  net.action(action);
 }
 let net=new EstateNetwork(render);window.estateNetwork=net;
 const param=new URLSearchParams(location.search).get('room');if(param)$('code').value=param;
 function button(label,fn,parent,disabled=false){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-label',label);b.disabled=disabled;b.onclick=fn;parent.append(b);return b;}
 async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
-$('solo').onclick=()=>{effects.reset();net=new EstateSolo(render,$('nickname').value,Number($('cpu-count').value));window.estateNetwork=net;lastPosition='';net.emit();};
+$('solo').onclick=()=>{effects.reset();net=new EstateSolo(render,$('nickname').value,Number($('cpu-count').value));window.estateNetwork=net;net.presentationDelay=()=>Math.max(0,effects.busyUntil-Date.now());lastPosition='';net.emit();};
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);render();};
 $('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>net.leave();
 $('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'世界遺産トラベル',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
@@ -22,14 +24,14 @@ function coordinates(i){if(i<=10)return[11-i,11];if(i<=20)return[1,21-i];if(i<=3
 function render(){
  $('status').textContent=net.status;const joined=net.members.some(m=>m.id===net.id);$('entry').hidden=joined;if(!joined&&net.status!=='通信を接続中…')$('solo').disabled=$('create').disabled=$('join').disabled=false;$('lobby').hidden=!joined||!!net.state;$('game').hidden=!net.state;$('leave').hidden=!joined;
  $('room').textContent=net.room;$('share-url').value=location.origin+location.pathname+'?room='+net.room;$('members').replaceChildren();net.members.forEach(m=>{const li=document.createElement('li');li.textContent=m.name+(m.id===net.id?'（あなた）':'')+(m.connected?'':'（退出）');$('members').append(li);});$('start').hidden=!net.host;$('start').disabled=net.members.length<2;
- const s=net.state;if(!s)return;const me=s.players.find(p=>p.id===net.id),current=s.players[s.turn],mine=current.id===net.id;
+ const s=net.state;if(!s){effects.reset();return;}const me=s.players.find(p=>p.id===net.id),current=s.players[s.turn],mine=current.id===net.id;
  const focus=current.id+':'+current.position,moved=focus!==lastPosition;if(moved){lastPosition=focus;selected=current.position;} $('players').replaceChildren();s.players.forEach((p,i)=>{const box=document.createElement('div');box.dataset.playerId=p.id;box.className='player'+(i===s.turn?' active':'');box.style.setProperty('--player',colors[i]);const name=document.createElement('span');name.textContent=p.name+(p.id===net.id?' • あなた':'')+(p.bankrupt?' • 破産':'');const money=document.createElement('strong');money.textContent=eur(p.money);const detail=document.createElement('small');detail.textContent='所有 '+Object.values(s.properties).filter(v=>v.owner===p.id).length+'か所'+(p.jail?' / 拘留中':'');box.append(name,money,detail);$('players').append(box);});
  $('board').replaceChildren();BOARD.forEach((tile,i)=>{const b=document.createElement('button');b.dataset.tileId=i;b.dataset.type=tile.type;b.className='tile'+((i>10&&i<20)||(i>30&&i<40)?' side-tile':'')+(i===selected?' selected':'');const [col,row]=coordinates(i);b.style.gridColumn=col;b.style.gridRow=row;b.style.setProperty('--group',tile.color||'#cdd8bf');b.setAttribute('aria-label',i+': '+tile.name);const name=document.createElement('span');name.className='tile-name';name.textContent=tile.name;const tokens=document.createElement('div');tokens.className='tokens';s.players.forEach((p,j)=>{if(p.position===i&&!p.bankrupt){const dot=document.createElement('span');dot.className='token';dot.dataset.playerId=p.id;dot.style.setProperty('--player',colors[j]);dot.title=p.name;tokens.append(dot);}});b.append(name,tokens);const owner=s.players.findIndex(p=>p.id===s.properties[i]?.owner);if(owner>=0){b.classList.add('owned');b.style.setProperty('--owner',colors[owner]);}b.onclick=()=>{selected=i;render();};$('board').append(b);});
- $('turn-label').textContent=current.name+'の番';const phases={roll:'サイコロを振ろう',buy:'この場所を購入しますか？',auction:'競売中',end:'次の旅人へ',debt:'支払い資金が不足しています',over:'旅の終わり'};$('phase').textContent=phases[s.phase]||s.phase;$('current').textContent=s.phase==='over'?'勝者: '+(s.players.find(p=>p.id===s.winner)?.name||'引き分け'):current.name+' · '+BOARD[current.position].name+(mine?'（あなたの番）':'');
+ $('turn-label').textContent=current.name+'の番';const phases={roll:'サイコロを振ろう',buy:'この場所を購入しますか？',auction:'競売中',end:'次の旅人へ',debt:'支払い資金が不足しています',over:'旅の終わり'};const waitingPhases={roll:'相手のサイコロを待っています',buy:'相手の購入判断を待っています',end:'相手のターン終了を待っています',debt:'相手の支払い対応を待っています'};$('phase').textContent=(!mine&&waitingPhases[s.phase])||phases[s.phase]||s.phase;$('current').textContent=s.phase==='over'?'勝者: '+(s.players.find(p=>p.id===s.winner)?.name||'引き分け'):current.name+' · '+BOARD[current.position].name+(mine?'（あなたの番）':'');
  const actions=$('actions');if(s.phase!=='auction'||auctionControls?.property!==s.auction.property){actions.replaceChildren();auctionControls=null;}const send=(label,type,disabled=false)=>button(label,()=>dispatch({type}),actions,disabled);
  const eligibleSend=(label,type)=>{const preview=act(s,net.id,{type},()=>0),control=send(label,type,!preview.ok);if(!preview.ok)control.title=preview.error;return control;};
  if(s.phase==='roll'){send('サイコロを振る','roll',!mine||effects.pending).classList.add('roll-action');if(me.jail){eligibleSend('€50で釈放','payJail');if(me.cards)eligibleSend('釈放カードを使う','useCard');}}
- if(s.phase==='buy'){const tile=BOARD[s.pending.property];eligibleSend('購入 '+eur(tile.price),'buy');send('見送る → 競売','decline',!mine);}
+ if(s.phase==='buy'){const tile=BOARD[s.pending.property];const preview=document.createElement('p');preview.className='decision-preview';preview.textContent=(mine?'購入後の手持ち: '+eur(me.money-tile.price)+' / ':'')+'購入価格 '+eur(tile.price)+'。見送ると全員参加の競売になります。';actions.append(preview);eligibleSend('購入 '+eur(tile.price),'buy');send('見送る → 競売','decline',!mine);}
  if(s.phase==='auction'){
   const a=s.auction;
   // Keep the actual input mounted: CPU/peer updates must not dismiss a mobile keyboard.
@@ -46,14 +48,14 @@ function render(){
  if(s.phase==='end')send('ターンを終了','end',!mine);
  if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);const bankruptcy=eligibleSend('破産して棄権','bankrupt');if(mine&&bankruptcy.disabled)p.textContent+=' '+bankruptcy.title+'。';}
  $('tile-select').replaceChildren();for(const item of BOARD){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.selected=item.id===selected;$('tile-select').append(option);}
- const tile=BOARD[selected],prop=s.properties[selected],owner=s.players.find(p=>p.id===prop?.owner);renderDestination(tile,prop,owner);$('detail').textContent=tile.name+(tile.price?' · 購入 '+eur(tile.price):'')+'\n'+(owner?'所有者: '+owner.name+' / 建物 '+prop.houses+(prop.mortgaged?' / 抵当中':''):'未所有')+(tile.rent?'\n基本家賃 '+eur(tile.rent[0]):'');const pa=$('property-actions');pa.replaceChildren();if(prop?.owner===net.id&&!me.bankrupt&&s.phase!=='over')for(const [type,label] of [['build','建築'],['sell','建物を売る'],['mortgage','抵当に入れる'],['redeem','抵当を解除']]){
+ const tile=BOARD[selected],prop=s.properties[selected],owner=s.players.find(p=>p.id===prop?.owner);renderDestination(tile,prop,owner);$('detail').textContent=tile.name+(tile.price?' · 購入 '+eur(tile.price):'')+'\n'+(owner?'所有者: '+owner.name+' / 建物 '+prop.houses+(prop.mortgaged?' / 抵当中':''):'未所有')+(tile.rent?'\n基本家賃 '+eur(tile.rent[0]):'');let collection=$('collection-progress');if(!collection){collection=document.createElement('div');collection.id='collection-progress';collection.className='collection-progress';$('detail').after(collection);}collection.replaceChildren();if(tile.group){const group=BOARD.filter(t=>t.group===tile.group),owned=group.filter(t=>s.properties[t.id]?.owner===net.id).length;const label=document.createElement('p');label.textContent=`この色のコレクション：${owned} / ${group.length}か所`+(owned===group.length?' — 全部そろいました！':' — あと'+(group.length-owned)+'か所');const progress=document.createElement('progress');progress.max=group.length;progress.value=owned;progress.setAttribute('aria-label','この色の所有地');collection.style.setProperty('--collection-color',tile.color);const hint=document.createElement('p');hint.textContent='同じ色をそろえると更地家賃が2倍。抵当を解除して均等に建築できます。建築費 '+eur(tile.houseCost)+' / 軒。';collection.append(label,progress,hint);}const pa=$('property-actions');pa.replaceChildren();if(prop?.owner===net.id&&!me.bankrupt&&s.phase!=='over')for(const [type,label] of [['build','建築'],['sell','建物を売る'],['mortgage','抵当に入れる'],['redeem','抵当を解除']]){
   // The reducer is immutable: preview legality without spending money or real RNG.
   const preview=act(s,net.id,{type,property:selected},()=>0);
   const control=button(label,()=>dispatch({type,property:selected}),pa,!preview.ok);
   if(!preview.ok)control.title=preview.error;
  }
  if(net.halted){$('phase').textContent='通信切断により対戦中断';document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);}
- $('last-card-result').hidden=!s.lastCard;if(s.lastCard)$('last-card-result').querySelector('p').textContent=(s.lastCard.type==='chest'?'手紙：':'チャンス：')+s.lastCard.title+' — '+s.lastCard.text;effects.observe(s);
+ $('last-card-result').hidden=!s.lastCard;if(s.lastCard)$('last-card-result').querySelector('p').textContent=(s.lastCard.type==='chest'?'手紙：':'チャンス：')+s.lastCard.title+' — '+s.lastCard.text;effects.observe(s);if(effects.busy){document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);$('phase').textContent='出目と到着先を確認中…';}
  $('log').replaceChildren();s.log.slice(-12).reverse().forEach(item=>{const li=document.createElement('li');li.textContent=item;$('log').append(li);});
 }
 render();
