@@ -12,6 +12,25 @@ try {
   const page=await browser.newPage({viewport:{width,height:844},reducedMotion:'reduce'});
   await page.clock.install();
   await page.goto(base);
+  // Keyboard indicators must remain visible after changing to the cream skin.
+  await page.keyboard.press('Tab');
+  for(const selector of ['.brand','[data-care="feed"]','.card','.guide summary']){
+   await page.locator(selector).first().focus();
+   const indicator=await page.locator(selector).first().evaluate(element=>{
+    const style=getComputedStyle(element);
+    const luminance=color=>{
+     const channels=color.match(/[\d.]+/g).slice(0,3).map(Number).map(value=>{
+      const s=value/255;return s<=.04045?s/12.92:((s+.055)/1.055)**2.4;
+     });
+     return channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;
+    };
+    // The offset outline is drawn outside the element on the page background.
+    const a=luminance(style.outlineColor),b=luminance(getComputedStyle(document.body).backgroundColor);
+    return {visible:element.matches(':focus-visible'),width:parseFloat(style.outlineWidth),style:style.outlineStyle,contrast:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
+   });
+   assert.ok(indicator.visible&&indicator.width>=3&&indicator.style==='solid',selector+' has a keyboard focus outline');
+   assert.ok(indicator.contrast>=3,selector+' focus outline contrasts with the light background');
+  }
   await page.locator('#outfits-open').click();
   await page.locator('[data-item="bow"]').focus();
   // The real periodic render previously removed the focused button.
