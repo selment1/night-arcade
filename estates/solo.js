@@ -1,4 +1,4 @@
-import {BOARD,createGame,act} from './engine.js';
+import {BOARD,createGame,act} from './engine.js?v=expansion-1';
 // Decisions use only public state and the same rule validator as human moves.
 export function cpuAction(s,id){
  const p=s.players.find(p=>p.id===id);if(!p||p.bankrupt||s.phase==='over')return null;
@@ -20,11 +20,11 @@ export function cpuAction(s,id){
  return null;
 }
 export class EstateSolo{
- constructor(update,name){this.update=update;this.id='human';this.room='';this.host=true;this.solo=true;this.members=[{id:'human',name:(name.trim()||'あなた').slice(0,20),connected:true},{id:'cpu',name:'CPU トラベラー',connected:true}];this.state=createGame(this.members);this.status='1人プレイ · CPU対戦';this.closed=false;}
+ constructor(update,name,cpuCount=1){const count=Number.isInteger(cpuCount)?Math.max(1,Math.min(3,cpuCount)):1;this.update=update;this.id='human';this.room='';this.host=true;this.solo=true;this.members=[{id:'human',name:(name.trim()||'あなた').slice(0,20),connected:true},...Array.from({length:count},(_,i)=>({id:i===0?'cpu':'cpu'+(i+1),name:['CPU トラベラー','CPU エクスプローラー','CPU コレクター'][i],connected:true}))];this.state=createGame(this.members);this.status='1人プレイ · CPU対戦';this.closed=false;}
  emit(){this.update();this.schedule();}
  fail(message){this.status=message;this.emit();}
  action(action){this.dispatch(this.id,action);}
  dispatch(id,action){if(this.closed)return;const r=act(this.state,id,action);if(!r.ok){this.status=r.error;this.update();return;}this.state=r.state;this.status=this.state.phase==='over'?'対戦終了':'1人プレイ · CPU対戦';this.emit();}
- schedule(){clearTimeout(this.timer);if(this.closed)return;const a=cpuAction(this.state,'cpu');if(a)this.timer=setTimeout(()=>{if(!this.closed)this.dispatch('cpu',a);},650);}
+ schedule(){clearTimeout(this.timer);if(this.closed)return;const candidates=this.state.players.filter(p=>p.id!==this.id&&!p.bankrupt);for(const p of candidates){const a=cpuAction(this.state,p.id);if(a){this.timer=setTimeout(()=>{if(!this.closed)this.dispatch(p.id,a);},1500);break;}}}
  leave(){this.closed=true;clearTimeout(this.timer);location.href=location.pathname;}
 }
