@@ -75,6 +75,24 @@ if(process.argv.includes('--ui')){
  await undoLegacy.close();console.log('PASS: blocked legacy undo preserves the terminal match, then recovery settles once before undo/reload/replay.');
  console.log('PASS: blocked legacy terminal save recovers its reward once before restart/reload and clears the stale storage notice.');
  console.log('PASS: legacy completed shogi migration preserves moves/rotation, rewards once across reload and undo/replay.');
+ // Selective pet-write failures must be visible even when the match itself saves.
+ for(const blockGame of [false,true]){
+  const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
+  await page.evaluate(()=>{const cycle=[{from:76,to:67},{from:4,to:13},{from:67,to:76},{from:13,to:4}];localStorage.setItem('night-arcade-shogi-v1',JSON.stringify({version:1,moves:[...cycle,...cycle,...cycle].slice(0,11),rotated:false,ended:null,matchId:'pet-save-interrupted'}));});await page.reload();
+  const original=await page.evaluate(()=>localStorage.getItem('night-arcade-shogi-v1'));
+  await page.evaluate(blockGame=>{window.blockWrites=true;const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(window.blockWrites&&(k==='night-pet-v1'||blockGame&&k==='night-arcade-shogi-v1'))throw Error('save interrupted');return original.call(this,k,v)};},blockGame);
+  await page.locator('[data-square="13"]').click();await page.locator('[data-square="4"]').click();
+  assert.match(await page.locator('#status').innerText(),/引き分け/);assert.match(await page.locator('#reward-note').innerText(),/報酬を保存できませんでした。この画面の間だけ保持/);
+  const pet=await page.evaluate(()=>NightPet.snapshot());assert.equal(pet.coins,30);assert.equal(pet.xp,20);assert.equal(pet.gamesPlayed,1);assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);
+  if(blockGame){assert.equal(await page.evaluate(()=>localStorage.getItem('night-arcade-shogi-v1')),original);assert.match(await page.locator('#save-note').innerText(),/保存は利用できません/);}
+  else assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('night-arcade-shogi-v1')).moves.length),12);
+  await page.locator('#rotate').click();assert.match(await page.locator('#reward-note').innerText(),/この画面の間だけ保持/);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  if(!blockGame){const saved=await page.evaluate(()=>localStorage.getItem('night-arcade-shogi-v1'));for(let attempt=0;attempt<2;attempt++){await page.reload();assert.doesNotMatch(await page.locator('#reward-note').innerText(),/報酬を保存できませんでした/);const recovered=await page.evaluate(()=>NightPet.snapshot());assert.equal(recovered.coins,30);assert.equal(recovered.xp,20);assert.equal(recovered.gamesPlayed,1);assert.equal(recovered.rewards['shogi:pet-save-interrupted'],true);assert.equal(await page.evaluate(()=>localStorage.getItem('night-arcade-shogi-v1')),saved);}}
+  await page.locator('#undo').click();
+  if(blockGame){assert.match(await page.locator('#reward-note').innerText(),/この画面の間だけ保持/);await page.locator('#restart').click();await page.locator('#modal').getByRole('button',{name:'新しい対局'}).click();assert.match(await page.locator('#reward-note').innerText(),/この画面の間だけ保持/);assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);await page.evaluate(()=>{window.blockWrites=false;NightPet.care('play');});assert.equal(await page.locator('#reward-note').isVisible(),false);assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('night-pet-v1')).coins),30);}
+  await ctx.close();
+ }
+ console.log('PASS: selective pet-save and dual-save failures show a persistent session-only reward warning; saved terminal reload recovers exactly once.');
  assert.deepEqual(errors,[]);console.log('PASS: Chrome 320/390/1280 UI, real moves, capture, optional promotion, drop, reload, undo, rotation, dialogs; no JS errors.');
  }finally{await browser?.close();await new Promise(r=>server.close(r))}
 }
