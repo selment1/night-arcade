@@ -55,6 +55,10 @@ try{
   const saved=await page.evaluate(()=>localStorage.getItem('night-reversi-v1'));assert.equal(JSON.parse(saved).ended,true);assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);
   assert.match(await page.locator('#status').innerText(),/報酬を保存できませんでした。この画面の間だけ保持/);
   await page.locator('#rotate').click();assert.match(await page.locator('#status').innerText(),/この画面の間だけ保持/);
+  await page.locator('#undo').click();assert.match(await page.locator('#status').innerText(),/この画面の間だけ保持/,'undo must retain the unsaved reward warning');
+  await page.locator('[data-index="0"]').click();assert.match(await page.locator('#status').innerText(),/この画面の間だけ保持/,'replaying a rewarded match must retain the warning');
+  assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),saved);
   for(let attempt=0;attempt<2;attempt++){
    await page.reload();assert.match(await page.locator('#status').innerText(),/終局/);
    assert.doesNotMatch(await page.locator('#status').innerText(),/報酬を保存できませんでした/);
@@ -62,6 +66,21 @@ try{
    assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),saved,'recovery preserves saved match');
   }
   await page.locator('#undo').click();await page.locator('[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);await ctx.close();
+ }
+ // Restart keeps pending earnings visible; a successful pet transaction clears the warning.
+ {
+  const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await ctx.newPage();await page.goto(url);
+  await page.evaluate(()=>{const b=Array(64).fill(1);b[0]=0;b[1]=2;localStorage.setItem('night-reversi-v1',JSON.stringify({b,turn:1,last:2,ended:false,history:[],matchId:'restart-warning-recovery'}));});await page.reload();
+  await page.evaluate(()=>{window.blockPetSave=true;const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='night-pet-v1'&&window.blockPetSave)throw Error('pet save interrupted');return original.call(this,k,v)};});
+  await page.locator('[data-index="0"]').click();page.once('dialog',d=>d.accept());await page.locator('#restart').click();
+  assert.match(await page.locator('#status').innerText(),/この画面の間だけ保持/,'restart must retain unsaved earnings warning');
+  const match=await page.evaluate(()=>localStorage.getItem('night-reversi-v1'));assert.notEqual(JSON.parse(match).matchId,'restart-warning-recovery');assert.equal(JSON.parse(match).ended,false);
+  assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);
+  await page.evaluate(()=>{window.blockPetSave=false;NightPet.care('play');});
+  assert.doesNotMatch(await page.locator('#status').innerText(),/報酬を保存できませんでした/,'durable pet:change clears warning without a game action');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),match);
+  const pet=await page.evaluate(()=>JSON.parse(localStorage.getItem('night-pet-v1')));assert.equal(pet.coins,30);assert.equal(pet.xp,20);assert.equal(pet.gamesPlayed,1);assert.equal(pet.rewards['reversi:restart-warning-recovery'],true);
+  await page.reload();assert.doesNotMatch(await page.locator('#status').innerText(),/報酬を保存できませんでした/);assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await ctx.close();
  }
  // The fallback reward path must also warn when both writes fail after a durable match was loaded.
  {
@@ -73,7 +92,7 @@ try{
   const pet=await page.evaluate(()=>NightPet.snapshot());assert.equal(pet.coins,30);assert.equal(pet.xp,20);assert.equal(pet.gamesPlayed,1);assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),saved);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await ctx.close();
  }
- console.log('PASS: session-only reward warning for selective pet-save and dual-save failures; cleared after durable recovery.');
+ console.log('PASS: sticky session-only reward warning through undo/replay/restart, cleared by durable pet:change or reload recovery; selective and dual-save failures.');
  console.log('PASS: interrupted terminal reward recovers on reload exactly once without changing saved match.');
  console.log('PASS: terminal legacy undo/restart preserve blocked state, cancel is inert, recovery settles exactly once.');
  console.log('PASS: Reversi legacy identity, reload/undo reward deduplication, blocked-save deferral and recovery, mobile layout.');
