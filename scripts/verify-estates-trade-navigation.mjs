@@ -27,12 +27,21 @@ try{
   assert(await page.locator('#trade-panel summary').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}));
   assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),before);
   assert.equal(await page.locator('#tile-select').inputValue(),'37');
-  await page.getByRole('button',{name:'条件を変えて再提案',exact:true}).click();
+  await page.getByRole('button',{name:'条件を変えて再提案',exact:true}).focus();
+  await page.keyboard.press('Enter');
+  assert(await page.locator('[name=trade-target]').evaluate(el=>document.activeElement===el),'Counter editor must receive keyboard focus');
+  assert(await page.locator('[name=trade-target]').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}));
+  await page.keyboard.press('Tab');
+  assert(await page.locator('[name=give]').first().evaluate(el=>document.activeElement===el),'Tab must continue through the counter terms');
   await page.locator('[name=trade-cash]').fill('17');
   await page.evaluate(()=>estateNetwork.emit());await jump.click();
   assert.equal(await page.locator('[name=trade-cash]').inputValue(),'17');
   assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),before);
-  await page.getByRole('button',{name:'条件変更をやめる',exact:true}).click();
+  await page.getByRole('button',{name:'条件変更をやめる',exact:true}).focus();
+  await page.keyboard.press('Enter');
+  assert(await page.getByRole('button',{name:'条件を変えて再提案',exact:true}).evaluate(el=>document.activeElement===el),'Cancelling edit must restore focus to counter button');
+  assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),before);
+  assert(await page.getByRole('button',{name:'条件を変えて再提案',exact:true}).evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}));
   await page.getByRole('button',{name:'見送る',exact:true}).click();assert.equal(await jump.count(),0);
   // A personal mortgage receipt must preserve an otherwise valid unsent proposal.
   await page.reload();await startFreshSolo(page);
@@ -54,5 +63,5 @@ try{
   await page.getByRole('button',{name:'提案を取り下げる',exact:true}).click();assert.equal(await page.locator('[name=trade-cash]').inputValue(),'0');assert(!(await page.locator('[name=take][value="3"]').isChecked()));
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.close();
  }
- console.log('PASS trade navigation320/390: explicit open/scroll/focus, unchanged state/inspection/counter draft, removed after rejection; personal receipt retains valid draft, prunes ineligible deeds, clears sent/cancelled proposal.');
+ console.log('PASS trade navigation320/390: explicit open/scroll/focus, unchanged state/inspection/counter draft, keyboard counter entry/Tab/cancel focus restoration, removed after rejection; personal receipt retains valid draft, prunes ineligible deeds, clears sent/cancelled proposal.');
 }finally{await browser?.close();server?.kill()}
