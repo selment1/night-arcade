@@ -25,6 +25,6 @@ export class EstateSolo{
  fail(message){this.status=message;this.emit();}
  action(action){this.dispatch(this.id,action);}
  dispatch(id,action){if(this.closed)return;const r=act(this.state,id,action);if(!r.ok){this.status=r.error;this.update();return;}this.state=r.state;this.status=this.state.phase==='over'?'対戦終了':'1人プレイ · CPU対戦';this.emit();}
- schedule(){clearTimeout(this.timer);if(this.closed)return;const candidates=this.state.players.filter(p=>p.id!==this.id&&!p.bankrupt);for(const p of candidates){const a=cpuAction(this.state,p.id);if(a){this.timer=setTimeout(()=>{if(!this.closed)this.dispatch(p.id,a);},1500);break;}}}
+ schedule(){clearTimeout(this.timer);if(this.closed)return;const candidates=this.state.players.filter(p=>p.id!==this.id&&!p.bankrupt);for(const p of candidates){const a=cpuAction(this.state,p.id);if(a){this.timer=setTimeout(()=>{if(!this.closed)this.dispatch(p.id,a);},Math.max(1500,this.presentationDelay?.()||0));break;}}}
  leave(){this.closed=true;clearTimeout(this.timer);location.href=location.pathname;}
 }
