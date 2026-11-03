@@ -59,3 +59,6 @@ Corrupt or unsupported sidecar data is left byte-for-byte intact and the current
 ## Verification
 
 Run `node scripts/verify-id-care.mjs`. Fake-clock tests cover phase transitions, legacy stage migration, original ledger preservation, deterministic elapsed catchup, long offline bounds, sleep/wake and light behavior, feeding refusal, waste and hygiene, illness/cure, care misses, friendship, room changes, per-character state, reload, storage failure and corrupt-save protection. This suite is headless; parent integration verifies rendered controls separately.
+
+## User-requested coin care (2026-11-03)
+Meals cost3 coins, snacks2, lights off/rest2; lights on and other care are free. These costs are a requested original rule, not an assertion about real iD firmware. Insufficient balances and rejected actions do not change care or charge coins. Repeating the same lights setting does not charge. Both care modes charge meals/rest; existing coin ledger retained. Daily automatic sleep is still time-based; the paid rest button turns lights off. Separate local save keys are not an atomic cross-tab database; use one active game tab.

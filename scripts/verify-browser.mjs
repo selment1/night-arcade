@@ -11,7 +11,7 @@ try{
  for(const width of [320,390,1280]){
   const context=await browser.newContext({viewport:{width,height:844},hasTouch:width<500,isMobile:width<500});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+'?mode=arcade');await page.waitForLoadState('networkidle');assert.equal(await page.locator('.card').count(),5);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'home fits '+width);
-  const box=await page.locator('[data-care="feed"]').boundingBox();assert(box.y+box.height<=844,'care above fold');
+  await page.evaluate(()=>NightPet.reward({game:'quiz',id:'care-funds',coins:3,xp:0}));const box=await page.locator('[data-care="feed"]').boundingBox();assert(box.y+box.height<=844,'care above fold');
   await page.locator('[data-care="feed"]').click();assert.match(await page.locator('#notice').textContent(),/もぐもぐ/);await page.locator('[data-care="feed"]').click();assert.match(await page.locator('#notice').textContent(),/あと/);
   await page.locator('#characters-open').click();await page.locator('[data-item="kitsune"]').click();assert.match(await page.locator('#notice').textContent(),/あと120/);
   await page.evaluate(()=>NightPet.reward({game:'quiz',id:'ui-test-'+innerWidth,coins:60,xp:60}));await page.locator('#shop-close').click();await page.locator('#evolve').click();assert.equal(await page.locator('#stage').textContent(),'こども');assert.equal(await page.locator('#coins').textContent(),'10');
