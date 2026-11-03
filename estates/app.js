@@ -1,4 +1,4 @@
-import {BOARD} from './engine.js?v=expansion-1';
+import {BOARD,act} from './engine.js?v=expansion-1';
 import {EstateNetwork} from './network.js?v=expansion-1';
 import {EstateSolo} from './solo.js?v=expansion-1';
 import {JourneyEffects} from './effects.js?v=expansion-1';
@@ -48,7 +48,12 @@ function render(){
  if(s.phase==='end')send('ターンを終了','end',!mine);
  if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);send('破産して棄権','bankrupt',!mine);}
  $('tile-select').replaceChildren();for(const item of BOARD){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.selected=item.id===selected;$('tile-select').append(option);}
- const tile=BOARD[selected],prop=s.properties[selected],owner=s.players.find(p=>p.id===prop?.owner);renderDestination(tile,prop,owner);$('detail').textContent=tile.name+(tile.price?' · 購入 '+eur(tile.price):'')+'\n'+(owner?'所有者: '+owner.name+' / 建物 '+prop.houses+(prop.mortgaged?' / 抵当中':''):'未所有')+(tile.rent?'\n基本家賃 '+eur(tile.rent[0]):'');const pa=$('property-actions');pa.replaceChildren();if(prop?.owner===net.id&&!me.bankrupt&&s.phase!=='over')for(const [type,label] of [['build','建築'],['sell','建物を売る'],['mortgage','抵当に入れる'],['redeem','抵当を解除']])button(label,()=>dispatch({type,property:selected}),pa,!mine||s.phase==='auction'||(s.phase==='debt'&&['build','redeem'].includes(type)));
+ const tile=BOARD[selected],prop=s.properties[selected],owner=s.players.find(p=>p.id===prop?.owner);renderDestination(tile,prop,owner);$('detail').textContent=tile.name+(tile.price?' · 購入 '+eur(tile.price):'')+'\n'+(owner?'所有者: '+owner.name+' / 建物 '+prop.houses+(prop.mortgaged?' / 抵当中':''):'未所有')+(tile.rent?'\n基本家賃 '+eur(tile.rent[0]):'');const pa=$('property-actions');pa.replaceChildren();if(prop?.owner===net.id&&!me.bankrupt&&s.phase!=='over')for(const [type,label] of [['build','建築'],['sell','建物を売る'],['mortgage','抵当に入れる'],['redeem','抵当を解除']]){
+  // The reducer is immutable: preview legality without spending money or real RNG.
+  const preview=act(s,net.id,{type,property:selected},()=>0);
+  const control=button(label,()=>dispatch({type,property:selected}),pa,!preview.ok);
+  if(!preview.ok)control.title=preview.error;
+ }
  if(net.halted){$('phase').textContent='通信切断により対戦中断';document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);}
  $('last-card-result').hidden=!s.lastCard;if(s.lastCard)$('last-card-result').querySelector('p').textContent=(s.lastCard.type==='chest'?'手紙：':'チャンス：')+s.lastCard.title+' — '+s.lastCard.text;effects.observe(s);if(moved)requestAnimationFrame(()=>focusBoard(current.position));
  $('log').replaceChildren();s.log.slice(-12).reverse().forEach(item=>{const li=document.createElement('li');li.textContent=item;$('log').append(li);});
