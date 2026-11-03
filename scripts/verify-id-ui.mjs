@@ -29,5 +29,16 @@ try{
  await page.locator('[data-care=rest]').click();await page.locator('#care-id').click();assert.ok(await page.locator('#pet-art').evaluate(e=>e.classList.contains('sleeping')));await page.clock.fastForward(8000);assert.ok(await page.locator('#pet-art').evaluate(e=>e.classList.contains('sleeping')),'arcade rest timer must not clear nighttime iD sleep');
  assert.deepEqual(errors,[]);await page.close();
  }
+ // A successful sidecar save must not conceal a failed coin-ledger write.
+ const failurePage=await browser.newPage({viewport:{width:320,height:844},timezoneId:'Asia/Tokyo'});
+ await failurePage.clock.install({time:new Date('2026-11-03T08:00:00+09:00')});await failurePage.goto(base);
+ await failurePage.evaluate(()=>{NightPet.reward({game:'quiz',id:'failure-ui-funds',coins:3});const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='night-pet-v1')throw new DOMException('quota','QuotaExceededError');return original.call(this,key,value)}});
+ await failurePage.clock.fastForward(16*60000);await failurePage.locator('[data-care=feed]').click();
+ assert.equal(await failurePage.locator('#coins').textContent(),'0');assert.match(await failurePage.locator('#notice').textContent(),/ごちそう/);
+ assert.equal(await failurePage.locator('#storage').isVisible(),true);assert.match(await failurePage.locator('#storage').textContent(),/この画面を閉じると/);
+ await failurePage.locator('[data-care=feed]').click();assert.match(await failurePage.locator('#notice').textContent(),/少し待って/);
+ await failurePage.locator('[data-id-action=snack]').click();assert.match(await failurePage.locator('#notice').textContent(),/あと2コイン必要/);
+ assert.equal(await failurePage.locator('#coins').textContent(),'0');assert.equal(await failurePage.evaluate(()=>IDCare.snapshot().hunger),4);
+ assert.equal(await failurePage.locator('#storage').isVisible(),true);assert.match(await failurePage.locator('#storage').textContent(),/この画面を閉じると/);await failurePage.close();
  console.log('PASS: default iD egg/hatch, feeding/snacks, room/lights, toilet, care-mode cleanup, sleep and 320/390px fit. Screenshots artifacts/id-care-{320,390}.png');
 }finally{await browser?.close();server?.kill()}

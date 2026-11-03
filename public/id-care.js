@@ -24,7 +24,7 @@ if(p.hunger===0||p.happiness===0||p.waste===3){p.neglectMinutes++;if(p.neglectMi
 }p.lastTick=from+steps*MIN;mature(p,now);}
 function current(){read();const now=Date.now(),base=root.NightPet?.snapshot?.()||{selected:'mori',characters:{mori:{stage:0}}};const id=Object.hasOwn(favorites,base.selected)?base.selected:'mori';if(!data.pets[id])data.pets[id]=fresh(now,base.characters?.[id]?.stage||0);else data.pets[id]=normalize(data.pets[id],now,base.characters?.[id]?.stage||0);const p=data.pets[id];tick(p,now);return {p,id,now};}
 function snapshot(){const {p,id,now}=current();save();return {...clone(p),selected:id,ageDays:Math.floor(Math.max(0,now-p.bornAt)/DAY),asleep:sleeping(p,now),nextGrowthAt:p.phase==='friend'?0:p.bornAt+growth[phases.indexOf(p.phase)],favorites:clone(favorites[id]),storageOK,notice};}
-function act(type,value){const currentState=current(),{id,now}=currentState,p=clone(currentState.p);let message='',charge=null;if(!['meal','snack','toilet','bath','medicine','lights','toy','outside','room'].includes(type))return{ok:false,message:'このお世話はまだありません。'};
+function act(type,value){const currentState=current(),{id,now}=currentState,p=clone(currentState.p);let message='',charge=null,paymentPersistent=true;if(!['meal','snack','toilet','bath','medicine','lights','toy','outside','room'].includes(type))return{ok:false,message:'このお世話はまだありません。'};
 if(type==='room'){if(!Object.hasOwn(rooms,value))return{ok:false,message:'お部屋を選んでね。'};p.room=value;message=rooms[value]+'に模様替え！';}
 else if(type==='lights'){const next=typeof value==='boolean'?value:!p.lights;if(next===p.lights)return{ok:false,message:'すでにその明るさです。'};if(!next)charge='rest';p.lights=typeof value==='boolean'?value:!p.lights;message=p.lights?'電気をつけました。':'電気を消しました。おやすみなさい。';}
 else{if(p.phase==='egg')return{ok:false,message:'もうすぐ生まれるよ。たまごを見守ってね。'};if(sleeping(p,now))return{ok:false,message:'すやすや眠っています。朝7時に起きるよ。'};
@@ -39,6 +39,6 @@ if(type==='medicine'){if(!p.sick)return{ok:false,message:'元気だから、お�
 const favIndex={meal:0,snack:1,toy:2}[type];if(p.phase==='friend'&&favIndex!==undefined&&(value===undefined||value===favorites[id][type])){const first=!p.friendship[favIndex];p.friendship[favIndex]=true;if(first)message+=' 大好きなもの発見！なかよしの印が増えたよ。';}
 if(['meal','snack','toy','outside'].includes(type))p.lastAction[type]=now;
 if(p.hunger>0&&p.happiness>0&&p.waste<3){p.neglectMinutes=0;p.missLatched=false;}
-}if(charge){const paid=root.NightPet?.spendCare?.(charge);if(!paid?.ok)return paid||{ok:false,message:'コインを確認できません。'};message+=`（${paid.cost}コイン）`;}data.pets[id]=p;mature(p,now);save();if(typeof root.dispatchEvent==='function'&&typeof root.CustomEvent==='function')root.dispatchEvent(new root.CustomEvent('idcare:change',{detail:{type,message}}));return{ok:true,message,persistent:storageOK};}
+}if(charge){const paid=root.NightPet?.spendCare?.(charge);if(!paid?.ok)return paid||{ok:false,message:'コインを確認できません。'};paymentPersistent=paid.persistent!==false;message+=`（${paid.cost}コイン）`;}data.pets[id]=p;mature(p,now);save();if(typeof root.dispatchEvent==='function'&&typeof root.CustomEvent==='function')root.dispatchEvent(new root.CustomEvent('idcare:change',{detail:{type,message}}));return{ok:true,message,persistent:storageOK&&paymentPersistent};}
 root.IDCare={snapshot,act,key:KEY,rooms:clone(rooms),favorites:clone(favorites)};
 })(globalThis);
