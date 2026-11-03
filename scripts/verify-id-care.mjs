@@ -32,3 +32,34 @@ const empty=harness({store:new Map([['night-pet-id-v1',JSON.stringify({version:1
 assert.equal(empty.api.act('room','sunset').persistent,true);
 assert.equal(harness({store:empty.store}).api.snapshot().room,'sunset');
 console.log('ID care malformed save protection and valid empty-save persistence passed.');
+
+// Clock rollback must not replay elapsed care, regress growth or rewrite friendship age.
+const clockPet=harness({stage:1});
+clockPet.api.snapshot();clockPet.advance(90*MIN);
+const clockBefore=clockPet.api.snapshot();
+clockPet.advance(-60*MIN);
+const clockBack=clockPet.api.snapshot();
+assert.equal(clockBack.lastTick,clockBefore.lastTick);
+assert.equal(clockBack.hunger,clockBefore.hunger);
+clockPet.api.act('room','cloud');
+clockPet.advance(60*MIN);
+assert.equal(clockPet.api.snapshot().activeMinutes,clockBefore.activeMinutes);
+assert.equal(clockPet.api.snapshot().hunger,clockBefore.hunger);
+const maturePet=harness({stage:2});
+const matureBefore=maturePet.api.snapshot();
+maturePet.advance(-72*HOUR);
+assert.equal(maturePet.api.snapshot().phase,'friend');
+maturePet.api.act('room','cloud');
+const matureReload=harness({stage:2,store:maturePet.store,at:maturePet.now()});
+assert.equal(matureReload.api.snapshot().phase,'friend');
+assert.equal(matureReload.api.snapshot().bornAt,matureBefore.bornAt);
+assert.equal(matureReload.api.snapshot().friendSince,matureBefore.friendSince);
+const cooldownPet=harness({stage:2});
+assert.equal(cooldownPet.api.act('toy').ok,true);
+const actionAt=cooldownPet.api.snapshot().lastAction.toy;
+cooldownPet.advance(-MIN);cooldownPet.api.snapshot();cooldownPet.advance(5000);
+assert.equal(cooldownPet.api.act('toy').ok,false);
+assert.equal(cooldownPet.api.snapshot().lastAction.toy,actionAt);
+cooldownPet.advance(MIN);
+assert.equal(cooldownPet.api.act('toy').ok,true);
+console.log('ID care clock rollback: no replayed decay, growth regression, friendship timestamp rewrite or cooldown bypass.');

@@ -47,6 +47,7 @@ Feeding, snacks, toys and walks have independent 5-second repetition cooldowns. 
 - On reaching friend stage, ≤2 misses yields sunny, 3–6 dreamy, ≥7 wild. This variant persists; no character or purchased inventory is deleted.
 - Three favorite actions at friend stage award three friendship marks. The fourth requires all three plus 48 hours since reaching friend stage. This companionship timer includes offline time. The marks persist across reloads and are separate for each unlocked character.
 - Offline care catchup is capped at seven days (10,080 one-minute steps). Older unattended care time is skipped, while chronological growth/age still catches up fully. Sub-minute remainder is retained so frequent rendering does not slow timers.
+- If the device clock moves backward, already-processed care time and saved timestamps are retained. Growth never reverses; elapsed care and existing action cooldowns resume when the clock catches up. Sleep still follows the current local wall clock.
 - No death, runaway, forced reset, marriage or generation loop is imposed. Neglect produces illness/care-driven evolution instead. This intentionally preserves existing pets and differs from destructive virtual-pet lifecycle systems.
 
 ## Save safety and economy
