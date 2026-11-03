@@ -5,11 +5,12 @@ import assert from 'node:assert/strict';
 const root=new URL('../public/',import.meta.url);
 const server=http.createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname;const data=await readFile(new URL('.'+path,root));res.setHeader('Content-Type',path.endsWith('.js')?'text/javascript':'text/html');res.end(data)}catch{res.statusCode=404;res.end()}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const base=(process.env.BASE_URL||`http://127.0.0.1:${server.address().port}`).replace(/\/$/,'');
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 try {
  const page=await browser.newPage({viewport:{width:320,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(`http://127.0.0.1:${server.address().port}/games/stack.html`);
- await page.evaluate(()=>{window.__rewards=[];window.NightPet={reward:p=>window.__rewards.push(p)}});
+ await page.goto(base+'/games/stack.html');
+ await page.evaluate(()=>{window.__rewards=[];window.NightPet={reward:p=>{window.__rewards.push(p);return {ok:true,coins:p.coins,xp:p.xp,persistent:true}}}});
  assert.equal(await page.locator('#drop').isEnabled(),true);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.locator('#drop').click();
@@ -32,5 +33,21 @@ try {
  assert.equal(await page.evaluate(()=>window.__rewards.length),1);
  await page.locator('#resume').click();assert.deepEqual(errors,[]);
  await page.screenshot({path:new URL('../artifacts/stack-mobile.png',import.meta.url).pathname,fullPage:true});
- console.log('PASS stack: actual rigid-body settlement; falling ends play; best saved; pause/resume; retry; alternating players; pagehide pause; 320px no overflow; reward once on loss and never reset/pause; no JS errors.');
+
+ // Pet persistence can fail while the independent best-score key still saves.
+ await page.evaluate(()=>{localStorage.removeItem('night-pet-v1');localStorage.removeItem('night-stack-best')});
+ await page.addInitScript(()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='night-pet-v1')throw new Error('pet save blocked');return set.call(this,key,value)}});
+ await page.reload();
+ const loseAfterOne=async()=>{await page.locator('#aim').fill('240');await page.locator('#aim').dispatchEvent('input');await page.locator('#drop').click();await page.waitForFunction(()=>document.querySelector('#score').textContent==='1',null,{timeout:15000});await page.locator('#aim').fill('45');await page.locator('#aim').dispatchEvent('input');await page.locator('#drop').click();await page.waitForFunction(()=>!document.querySelector('#overlay').hidden&&document.querySelector('#title').textContent==='あっ、落ちちゃった！',null,{timeout:15000})};
+ await loseAfterOne();
+ assert.match(await page.locator('#result').textContent(),/3 コイン・2 XP！.*報酬を保存できません.*この画面の間だけ/);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('night-stack-best')),'1');assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);
+ assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);
+ // Ended-game input and pause/pagehide cannot award again or erase its notice.
+ await page.evaluate(()=>{document.getElementById('drop').onclick();document.getElementById('pause').onclick();window.dispatchEvent(new Event('pagehide'))});
+ assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);assert.match(await page.locator('#result').textContent(),/報酬を保存できません/);
+ await page.locator('#resume').click();assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);
+ await loseAfterOne();const second=await page.evaluate(()=>NightPet.snapshot());assert.equal(second.coins,6);assert.equal(second.gamesPlayed,2);assert.equal(Object.keys(second.rewards).length,2);
+ await page.reload();assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,0);assert.equal(await page.locator('#best').textContent(),'1');assert.deepEqual(errors,[]);
+ console.log('PASS stack: actual rigid-body settlement; falling ends play; best saved; pause/resume; retry; alternating players; pagehide pause; 320px no overflow; reward once on loss and never reset/pause; selective pet-save failure warns while best persists; ended input no duplicate reward; retry creates one new reward; reload loses only unsaved pet reward; no JS errors.');
 }finally{await browser.close();await new Promise(r=>server.close(r))}
