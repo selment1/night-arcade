@@ -19,7 +19,7 @@ try{
  await page.evaluate(()=>{state={...state,revision:2,players:[{id:'one',name:'旅人',money:1550,position:0}],log:[...state.log,'旅人: 旅の費用 €50']};fx.observe(state);});
  await page.locator('.money-flight.negative').waitFor();assert.equal(await page.locator('.money-flight.negative').textContent(),'−€50');
  await page.locator('.journey-card').click();assert.equal(await page.locator('.journey-card').count(),0);
- await page.evaluate(()=>fx.reset());assert.equal(await page.locator('.journey-event').count(),0);assert.equal(await page.locator('.money-flight').count(),0);
+ await page.evaluate(()=>{state={...state,revision:3,cardEvents:[{type:'chest',title:'修繕通知',text:'家1軒につき €40 を支払う。',sequence:1}],log:[...state.log,'手紙を受領']};fx.observe(state);});await page.locator('.letter-card').waitFor();assert.match(await page.locator('.letter-card small').textContent(),/手紙/);await page.locator('.letter-card').click();assert.match(await page.locator('.letter-card strong').textContent(),/修繕通知.*€40/);await page.locator('.letter-card').click();await page.evaluate(()=>{state={...state,revision:4,cardEvents:[]};fx.observe(state);});assert.equal(await page.locator('.journey-card').count(),0);await page.evaluate(()=>fx.reset());assert.equal(await page.locator('.journey-event').count(),0);assert.equal(await page.locator('.money-flight').count(),0);
  await page.close();
  }
  console.log('PASS visual feedback: actual dice result, duplicate revision/action guard, card tap reveal/dismiss, income/payment, reduced motion.');

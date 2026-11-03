@@ -63,3 +63,6 @@ Pet care defaults to time-based iD-inspired care with original pixel SVG charact
 The standalone estates game uses a navy/brass travel-table UI, local licensed World Heritage photographs, visible die faces and real-state animation feedback for dice, movement, chance events and money changes. Photo credits/licenses are available per destination; see `docs/ESTATES-PHOTOS.md`. Reduced motion is respected. Presentation never determines rolls or changes the rule engine.
 
 Pet care prices requested by the owner: meals3 coins, snacks2, rest/lights-off2; lights-on and other care free. Both care modes preserve existing balances. Exact iD firmware reproduction is not claimed.
+
+## Expanded travel play
+Solo supports1–3 CPU opponents. The board defaults to1.5× width with square cells inside a pan/scroll viewport; overview and current-token controls do not zoom the rest of the page. All22 heritage photo cards have short UNESCO-sourced Japanese descriptions. Chance and letters use separate12-card finite decks with money, movement, repairs, detention and held escape cards; effects are original travel adaptations, not an official card-set reproduction. `verify-estates-expansion.mjs` covers4-player turns/auction and board geometry, `verify-estates-cards.mjs` covers effects/decks/debt.

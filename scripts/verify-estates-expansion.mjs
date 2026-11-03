@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {chromium} from '@playwright/test';
+import {spawn} from 'node:child_process';
+const base=process.env.BASE_URL||'http://127.0.0.1:4194/night-arcade/';const server=process.env.BASE_URL?null:spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:'4194'},stdio:'pipe'});let browser;
+try{
+ if(server)await new Promise((ok,no)=>{server.stdout.once('data',ok);server.once('error',no)});
+ browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(new URL('estates/',base).href);await page.locator('#cpu-count').selectOption('3');await page.locator('#solo').click();assert.equal(await page.locator('.player').count(),4);
+ const geometry=await page.evaluate(()=>{const v=document.querySelector('#board-viewport').getBoundingClientRect(),b=document.querySelector('.board-wrap').getBoundingClientRect(),t=document.querySelector('[data-tile-id="1"]').getBoundingClientRect();return{ratio:b.width/v.width,w:t.width,h:t.height,overflow:document.documentElement.scrollWidth>innerWidth}});assert(Math.abs(geometry.ratio-1.5)<.02);assert(Math.abs(geometry.w-geometry.h)<1);assert(!geometry.overflow);
+ await page.locator('#board-view').click();assert.equal(await page.locator('#board-view').getAttribute('aria-pressed'),'true');await page.locator('#board-view').click();
+ await page.evaluate(()=>{let i=0;Math.random=()=>++i%2?0.01:0.2});await page.getByRole('button',{name:'サイコロを振る',exact:true}).click();await page.getByRole('button',{name:/^購入 /}).click();await page.getByRole('button',{name:'ターンを終了',exact:true}).click();await page.waitForFunction(()=>estateNetwork.state.turn===0&&estateNetwork.state.players.slice(1).every(p=>p.position===3),{},{timeout:30000});
+ await page.getByRole('button',{name:'サイコロを振る',exact:true}).click();await page.getByRole('button',{name:'見送る → 競売',exact:true}).click();await page.waitForFunction(()=>{const a=estateNetwork.state.auction;return a&&a.highestBidder&&a.active.filter(id=>id!=='human').length===1},{},{timeout:40000});await page.getByRole('button',{name:'入札をやめる',exact:true}).click();assert.equal(await page.evaluate(()=>estateNetwork.state.phase),'end');assert.match(await page.evaluate(()=>estateNetwork.state.properties[6].owner),/^cpu/);
+ await page.locator('#tile-select').selectOption('37');assert((await page.locator('.heritage-description').textContent()).length>35);await page.screenshot({path:'artifacts/estates-four-player.png',fullPage:true});assert.deepEqual(errors,[]);
+ await page.goto(new URL('estates/',base).href);await page.locator('#cpu-count').selectOption('2');await page.locator('#solo').click();assert.equal(await page.locator('.player').count(),3);console.log('PASS CPU2/3 selection, full 4-player turn cycle and 4-player auction,1.5× square board/overview, description,390px no page overflow.');
+}finally{await browser?.close();server?.kill()}

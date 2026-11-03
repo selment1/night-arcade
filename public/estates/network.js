@@ -1,4 +1,4 @@
-import {createGame,act} from './engine.js';
+import {createGame,act} from './engine.js?v=expansion-1';
 const TYPES=new Set(['roll','buy','decline','bid','pass','end','build','sell','mortgage','redeem','payJail','useCard','bankrupt']);
 export class EstateNetwork {
  constructor(update){this.update=update;this.members=[];this.connections=new Map();this.lastSeen=new Map();this.state=null;this.id='';this.room='';this.host=false;this.status='未接続';this.closed=false;}

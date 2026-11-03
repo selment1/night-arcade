@@ -1,8 +1,8 @@
-import {BOARD} from './engine.js';
-import {EstateNetwork} from './network.js';
-import {EstateSolo} from './solo.js';
-import {JourneyEffects} from './effects.js';
-import {renderDestination} from './photo-view.js';
+import {BOARD} from './engine.js?v=expansion-1';
+import {EstateNetwork} from './network.js?v=expansion-1';
+import {EstateSolo} from './solo.js?v=expansion-1';
+import {JourneyEffects} from './effects.js?v=expansion-1';
+import {renderDestination} from './photo-view.js?v=expansion-1';
 const $=id=>document.getElementById(id), colors=['#df765e','#5488c4','#aa77ba','#c79e33'], eur=n=>'€'+Number(n).toLocaleString('ja-JP');
 let selected=0,lastPosition='';
 const effects=new JourneyEffects();let pendingRollTimer;
@@ -14,7 +14,10 @@ let net=new EstateNetwork(render);window.estateNetwork=net;
 const param=new URLSearchParams(location.search).get('room');if(param)$('code').value=param;
 function button(label,fn,parent,disabled=false){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-label',label);b.disabled=disabled;b.onclick=fn;parent.append(b);return b;}
 async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
-$('solo').onclick=()=>{effects.reset();net=new EstateSolo(render,$('nickname').value);window.estateNetwork=net;lastPosition='';net.emit();};
+$('solo').onclick=()=>{effects.reset();net=new EstateSolo(render,$('nickname').value,Number($('cpu-count').value));window.estateNetwork=net;lastPosition='';net.emit();};
+function focusBoard(id){const viewport=$('board-viewport'),tile=document.querySelector(`[data-tile-id="${id}"]`);if(!tile)return;const v=viewport.getBoundingClientRect(),t=tile.getBoundingClientRect();viewport.scrollTo({left:viewport.scrollLeft+t.left-v.left-(v.width-t.width)/2,top:viewport.scrollTop+t.top-v.top-(v.height-t.height)/2,behavior:'instant'});}
+$('board-token').onclick=()=>{if(net.state)focusBoard(net.state.players[net.state.turn].position);};
+$('board-view').onclick=()=>{const overview=$('board-viewport').classList.toggle('overview');$('board-view').setAttribute('aria-pressed',String(overview));$('board-view').textContent=overview?'拡大に戻す':'全体を見る';};
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);render();};
 $('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>net.leave();
 $('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'世界遺産トラベル',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
@@ -23,7 +26,7 @@ function render(){
  $('status').textContent=net.status;const joined=net.members.some(m=>m.id===net.id);$('entry').hidden=joined;if(!joined&&net.status!=='通信を接続中…')$('solo').disabled=$('create').disabled=$('join').disabled=false;$('lobby').hidden=!joined||!!net.state;$('game').hidden=!net.state;$('leave').hidden=!joined;
  $('room').textContent=net.room;$('share-url').value=location.origin+location.pathname+'?room='+net.room;$('members').replaceChildren();net.members.forEach(m=>{const li=document.createElement('li');li.textContent=m.name+(m.id===net.id?'（あなた）':'')+(m.connected?'':'（退出）');$('members').append(li);});$('start').hidden=!net.host;$('start').disabled=net.members.length<2;
  const s=net.state;if(!s)return;const me=s.players.find(p=>p.id===net.id),current=s.players[s.turn],mine=current.id===net.id;
- $('players').replaceChildren();s.players.forEach((p,i)=>{const box=document.createElement('div');box.dataset.playerId=p.id;box.className='player'+(i===s.turn?' active':'');box.style.setProperty('--player',colors[i]);const name=document.createElement('span');name.textContent=p.name+(p.id===net.id?' • あなた':'')+(p.bankrupt?' • 破産':'');const money=document.createElement('strong');money.textContent=eur(p.money);const detail=document.createElement('small');detail.textContent='所有 '+Object.values(s.properties).filter(v=>v.owner===p.id).length+'か所'+(p.jail?' / 拘留中':'');box.append(name,money,detail);$('players').append(box);});
+ const focus=current.id+':'+current.position,moved=focus!==lastPosition;if(moved){lastPosition=focus;selected=current.position;} $('players').replaceChildren();s.players.forEach((p,i)=>{const box=document.createElement('div');box.dataset.playerId=p.id;box.className='player'+(i===s.turn?' active':'');box.style.setProperty('--player',colors[i]);const name=document.createElement('span');name.textContent=p.name+(p.id===net.id?' • あなた':'')+(p.bankrupt?' • 破産':'');const money=document.createElement('strong');money.textContent=eur(p.money);const detail=document.createElement('small');detail.textContent='所有 '+Object.values(s.properties).filter(v=>v.owner===p.id).length+'か所'+(p.jail?' / 拘留中':'');box.append(name,money,detail);$('players').append(box);});
  $('board').replaceChildren();BOARD.forEach((tile,i)=>{const b=document.createElement('button');b.dataset.tileId=i;b.dataset.type=tile.type;b.className='tile'+(i===selected?' selected':'');const [col,row]=coordinates(i);b.style.gridColumn=col;b.style.gridRow=row;b.style.setProperty('--group',tile.color||'#cdd8bf');b.setAttribute('aria-label',i+': '+tile.name);const name=document.createElement('span');name.className='tile-name';name.textContent=tile.name;const tokens=document.createElement('div');tokens.className='tokens';s.players.forEach((p,j)=>{if(p.position===i&&!p.bankrupt){const dot=document.createElement('span');dot.className='token';dot.dataset.playerId=p.id;dot.style.setProperty('--player',colors[j]);dot.title=p.name;tokens.append(dot);}});b.append(name,tokens);const owner=s.players.findIndex(p=>p.id===s.properties[i]?.owner);if(owner>=0){b.classList.add('owned');b.style.setProperty('--owner',colors[owner]);}b.onclick=()=>{selected=i;render();};$('board').append(b);});
  $('turn-label').textContent=current.name+'の番';const phases={roll:'サイコロを振ろう',buy:'この場所を購入しますか？',auction:'競売中',end:'次の旅人へ',debt:'支払い資金が不足しています',over:'旅の終わり'};$('phase').textContent=phases[s.phase]||s.phase;$('current').textContent=s.phase==='over'?'勝者: '+(s.players.find(p=>p.id===s.winner)?.name||'引き分け'):current.name+' · '+BOARD[current.position].name+(mine?'（あなたの番）':'');
  const actions=$('actions');actions.replaceChildren();const send=(label,type,disabled=false)=>button(label,()=>dispatch({type}),actions,disabled);
@@ -32,10 +35,10 @@ function render(){
  if(s.phase==='auction'){const a=s.auction;const info=document.createElement('p');info.textContent=BOARD[a.property].name+' / 最高入札 '+eur(a.highestBid);actions.append(info);const amount=document.createElement('input');amount.type='number';amount.min=String(a.highestBid+1);amount.step='1';amount.value=String(a.highestBid+10);amount.className='bid-input';amount.setAttribute('aria-label','入札額（ユーロ）');actions.append(amount);const active=a.active.includes(net.id);button('€ 入札',()=>dispatch({type:'bid',amount:Number(amount.value)}),actions,!active);send('入札をやめる','pass',!active);}
  if(s.phase==='end')send('ターンを終了','end',!mine);
  if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);send('破産して棄権','bankrupt',!mine);}
- const focus=current.id+':'+current.position;if(focus!==lastPosition){lastPosition=focus;selected=current.position;} $('tile-select').replaceChildren();for(const item of BOARD){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.selected=item.id===selected;$('tile-select').append(option);}
+ $('tile-select').replaceChildren();for(const item of BOARD){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.selected=item.id===selected;$('tile-select').append(option);}
  const tile=BOARD[selected],prop=s.properties[selected],owner=s.players.find(p=>p.id===prop?.owner);renderDestination(tile,prop,owner);$('detail').textContent=tile.name+(tile.price?' · 購入 '+eur(tile.price):'')+'\n'+(owner?'所有者: '+owner.name+' / 建物 '+prop.houses+(prop.mortgaged?' / 抵当中':''):'未所有')+(tile.rent?'\n基本家賃 '+eur(tile.rent[0]):'');const pa=$('property-actions');pa.replaceChildren();if(prop?.owner===net.id&&!me.bankrupt&&s.phase!=='over')for(const [type,label] of [['build','建築'],['sell','建物を売る'],['mortgage','抵当に入れる'],['redeem','抵当を解除']])button(label,()=>dispatch({type,property:selected}),pa,!mine);
  if(net.halted){$('phase').textContent='通信切断により対戦中断';document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);}
- effects.observe(s);
+ $('last-card-result').hidden=!s.lastCard;if(s.lastCard)$('last-card-result').querySelector('p').textContent=(s.lastCard.type==='chest'?'手紙：':'チャンス：')+s.lastCard.title+' — '+s.lastCard.text;effects.observe(s);if(moved)requestAnimationFrame(()=>focusBoard(current.position));
  $('log').replaceChildren();s.log.slice(-12).reverse().forEach(item=>{const li=document.createElement('li');li.textContent=item;$('log').append(li);});
 }
 render();
