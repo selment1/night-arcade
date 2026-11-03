@@ -30,6 +30,23 @@ try{
   if(blocked){await page.locator('#undo').click();assert.match(await page.locator('#status').innerText(),/終局/);await page.evaluate(()=>{window.blockReversiSave=false;});await page.locator('#undo').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);await page.reload();await page.locator('#undo').click();await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);}
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);await ctx.close();
  }
+ // Malformed data must be backed up before any new match overwrites it.
+ for(const malformed of ['{broken save',JSON.stringify({b:[1],turn:1,history:[]}), 'null', '']){
+  const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await ctx.newPage();await page.goto(url);
+  await page.evaluate(raw=>localStorage.setItem('night-reversi-v1',raw),malformed);
+  await page.addInitScript(()=>{window.blockRecovery=true;const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(window.blockRecovery&&k==='night-reversi-v1-recovery')throw Error('recovery unavailable');return original.call(this,k,v);};});
+  await page.reload();assert.equal(await page.locator('#board button').count(),64);assert.match(await page.locator('#storage').innerText(),/保存データを読み込めなかった/);
+  await page.locator('[data-index="19"]').click();assert.match(await page.locator('#black').innerText(),/4/);assert.match(await page.locator('#storage').innerText(),/元の保存データを保護/);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),malformed);assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1-recovery')),null);
+  await page.reload();assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),malformed);
+  await page.locator('#restart').click();assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),malformed);
+  await page.evaluate(()=>{window.blockRecovery=false;});await page.locator('[data-index="19"]').click();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1-recovery')),malformed);assert.equal(await page.locator('#storage').isVisible(),false);
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('night-reversi-v1')));assert.equal(saved.b[19],1);assert.equal(saved.history.length,1);
+  await page.reload();assert.match(await page.locator('#black').innerText(),/4/);await page.locator('#undo').click();assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1-recovery')),malformed);assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),0);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await ctx.close();
+ }
+ console.log('PASS: malformed JSON/shape/null/empty saves preserved before replacement; blocked backup allows session play without overwrite, retries safely, and survives reload/undo.');
  // Terminal legacy recovery must settle before undo or a confirmed restart destroys it.
  for(const action of ['undo','restart']){
   const ctx=await browser.newContext();const page=await ctx.newPage();await page.goto(url);
