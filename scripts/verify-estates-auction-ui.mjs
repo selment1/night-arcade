@@ -76,6 +76,26 @@ try{
   await page.evaluate(()=>{const n=estateNetwork;n.state.turn=0;n.halted=true;n.emit();});
   await page.locator('#tile-select').selectOption('1');
   assert.deepEqual(await assetDisabled(),[true,true,true,true],'disconnection blocks asset actions');
+  // Purchase/release affordability uses the same reducer as actual actions.
+  await page.evaluate(()=>{const n=estateNetwork;n.halted=false;n.state.turn=0;n.state.phase='buy';n.state.pending={property:39};n.state.players[0].money=399;n.emit();});
+  const buy=page.getByRole('button',{name:'購入 €400',exact:true});
+  assert.equal(await buy.isDisabled(),true,'cannot purchase above available cash');
+  assert.equal(await page.getByRole('button',{name:'見送る → 競売',exact:true}).isEnabled(),true,'auction remains available');
+  await page.evaluate(()=>{estateNetwork.state.players[0].money=400;estateNetwork.emit();});
+  assert.equal(await buy.isEnabled(),true,'exact purchase funds are sufficient');
+  await buy.click();
+  assert.equal(await page.evaluate(()=>estateNetwork.state.players[0].money),0);
+  await page.evaluate(()=>{const n=estateNetwork;n.state.phase='roll';n.state.pending=null;n.state.players[0].jail=3;n.state.players[0].money=49;n.emit();});
+  const release=page.getByRole('button',{name:'€50で釈放',exact:true});
+  assert.equal(await release.isDisabled(),true,'unaffordable voluntary release is blocked');
+  assert.equal(await page.getByRole('button',{name:'サイコロを振る',exact:true}).isEnabled(),true,'free escape attempt remains available');
+  const beforeRelease=await page.evaluate(()=>JSON.stringify(estateNetwork.state));
+  await page.locator('#tile-select').selectOption('1');
+  assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),beforeRelease,'release preview never spends money or changes jail');
+  await page.evaluate(()=>{estateNetwork.state.players[0].money=50;estateNetwork.emit();});
+  assert.equal(await release.isEnabled(),true,'exact release funds are sufficient');
+  await release.click();
+  assert.deepEqual(await page.evaluate(()=>({money:estateNetwork.state.players[0].money,jail:estateNetwork.state.players[0].jail})),{money:0,jail:0});
   assert.deepEqual(errors,[]);await page.close();
  }
  console.log('PASS auction UI: 320/390px, actual CPU updates preserve input node/focus/draft, pristine defaults and minimum update, failed bid retains draft, highest bidder waits, outbid player re-enabled, withdrawal explained, new auction resets; asset controls enforce auction/debt/other-turn/disconnection restrictions and debt mortgage still executes.');
