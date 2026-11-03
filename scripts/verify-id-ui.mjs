@@ -40,5 +40,41 @@ try{
  await failurePage.locator('[data-id-action=snack]').click();assert.match(await failurePage.locator('#notice').textContent(),/あと2コイン必要/);
  assert.equal(await failurePage.locator('#coins').textContent(),'0');assert.equal(await failurePage.evaluate(()=>IDCare.snapshot().hunger),4);
  assert.equal(await failurePage.locator('#storage').isVisible(),true);assert.match(await failurePage.locator('#storage').textContent(),/この画面を閉じると/);await failurePage.close();
+ // Read-denied sidecar storage must not be overwritten even when writes succeed.
+ for(const width of [320,390]){
+ const context=await browser.newContext({viewport:{width,height:844},timezoneId:'Asia/Tokyo'});
+ const page=await context.newPage();
+ await page.clock.install({time:new Date('2026-11-03T08:00:00+09:00')});
+ await page.goto(base);
+ const saved=await page.evaluate(()=>{
+   IDCare.act('room','cloud');
+   const value=JSON.parse(localStorage.getItem(IDCare.key));
+   Object.assign(value.pets.mori,{phase:'friend',bornAt:Date.now()-49*3600000,friendSince:Date.now(),friendship:[true,true,true,true],variant:'dreamy'});
+   const raw=JSON.stringify(value);localStorage.setItem(IDCare.key,raw);return raw;
+ });
+ await page.addInitScript(()=>{
+   const get=Storage.prototype.getItem;
+   window.restoreCareRead=()=>{Storage.prototype.getItem=get};
+   Storage.prototype.getItem=function(key){if(key==='night-pet-id-v1')throw new DOMException('read denied','SecurityError');return get.call(this,key)};
+ });
+ await page.reload();
+ assert.equal(await page.locator('#storage').isVisible(),true);
+ assert.equal(await page.evaluate(()=>IDCare.snapshot().storageOK),false);
+ await page.locator('#id-panel summary').click();await page.locator('[data-value=sunset]').click();
+ assert.equal(await page.locator('.pet-room').getAttribute('data-room'),'sunset');
+ await page.evaluate(()=>window.restoreCareRead());
+ assert.equal(await page.evaluate(()=>localStorage.getItem(IDCare.key)),saved);
+ assert.equal(await page.evaluate(()=>IDCare.act('room','meadow').persistent),false);
+ assert.equal(await page.evaluate(()=>localStorage.getItem(IDCare.key)),saved);
+ assert.equal(await page.locator('#storage').isVisible(),true);
+ // A fresh page has no injected failure and recovers the original mature pet.
+ const recovered=await page.context().newPage();
+ await recovered.clock.install({time:new Date('2026-11-03T08:00:00+09:00')});await recovered.goto(base);
+ const pet=await recovered.evaluate(()=>IDCare.snapshot());
+ assert.equal(pet.storageOK,true);assert.equal(pet.phase,'friend');assert.equal(pet.room,'cloud');
+ assert.equal(pet.variant,'dreamy');assert.deepEqual(pet.friendship,[true,true,true,true]);
+ await context.close();
+ }
+ console.log('PASS: sidecar read denial preserves saved growth/friendship at 320/390px, including restored reads and fresh-page recovery.');
  console.log('PASS: default iD egg/hatch, feeding/snacks, room/lights, toilet, care-mode cleanup, sleep and 320/390px fit. Screenshots artifacts/id-care-{320,390}.png');
 }finally{await browser?.close();server?.kill()}
