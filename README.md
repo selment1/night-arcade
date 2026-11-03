@@ -58,3 +58,8 @@ A web manifest enables home-screen launching where supported, but offline cachin
 The pet app at `/night-arcade/` and World Heritage Travel at `/night-arcade/estates/` are separate products. No shared currency, character unlocks or navigation. The latter supports 2–4 players through real PeerJS/WebRTC with euro-denominated fictional assets. Host must stay online; reconnection, trading and universal cellular/NAT connectivity are not promised. See `docs/ESTATES-RULES.md` and `docs/ESTATES-NETWORK.md`.
 
 Pet care defaults to time-based iD-inspired care with original pixel SVG characters, food, hygiene, medicine, sleep, favorites and friendship. Timings are independent web-game rules, not a firmware reproduction. Original coin-driven evolution remains in ゲーム育成; previous saves are preserved. New care data uses `night-pet-id-v1`. See `docs/ID-CARE.md`.
+
+## Travel-table presentation
+The standalone estates game uses a navy/brass travel-table UI, local licensed World Heritage photographs, visible die faces and real-state animation feedback for dice, movement, chance events and money changes. Photo credits/licenses are available per destination; see `docs/ESTATES-PHOTOS.md`. Reduced motion is respected. Presentation never determines rolls or changes the rule engine.
+
+Pet care prices requested by the owner: meals3 coins, snacks2, rest/lights-off2; lights-on and other care free. Both care modes preserve existing balances. Exact iD firmware reproduction is not claimed.
