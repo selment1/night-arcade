@@ -234,4 +234,54 @@ for(const game of ['orbit','garden']){
  await page.reload();assert.equal(await page.locator('#best').textContent(),saved);
  console.log(`${game}: mobile layout, start, input, scoring, pause/resume, window blur freeze and explicit keyboard resume, collision gameover, restart, best persistence PASS`);
 }
+// Model 200% text enlargement, including explicitly sized text, on narrow portrait.
+const largeGarden=await browser.newPage({viewport:{width:320,height:780},isMobile:true,hasTouch:true});
+largeGarden.on('pageerror',e=>errors.push(e.message));
+try{
+ await largeGarden.goto(`${base}/games/garden.html`);
+ await largeGarden.evaluate(()=>{
+  const sizes=[...document.querySelectorAll('body,body *')].map(el=>[el,getComputedStyle(el).fontSize]);
+  for(const [el,size] of sizes)el.style.fontSize=`${parseFloat(size)*2}px`;
+ });
+ const reachable=async selector=>{
+  const element=largeGarden.locator(selector);
+  await element.scrollIntoViewIfNeeded();
+  assert(await element.evaluate(el=>{
+   const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();
+   return b.top>=v.top&&b.bottom<=v.bottom&&b.left>=v.left&&b.right<=v.right;
+  }),`${selector} can be scrolled fully into enlarged-text overlay`);
+ };
+ // Check both ends of instructions: a paragraph may itself exceed the board height.
+ assert(await largeGarden.locator('#veil').evaluate(el=>{
+  el.scrollTop=0;
+  return document.querySelector('#badge').getBoundingClientRect().top>=el.getBoundingClientRect().top;
+ }),'enlarged-text overlay beginning is not clipped above scroll origin');
+ await reachable('#heading');
+ assert(await largeGarden.locator('#description').evaluate(el=>{
+  const v=document.querySelector('#veil');
+  el.scrollIntoView({block:'start'});
+  const first=el.getBoundingClientRect().top>=v.getBoundingClientRect().top-1;
+  el.scrollIntoView({block:'end'});
+  return first&&el.getBoundingClientRect().bottom<=v.getBoundingClientRect().bottom+1;
+ }),'all enlarged instructions can be reached by scrolling');
+ await reachable('#start');await largeGarden.locator('#start').tap();
+ assert.equal(await largeGarden.evaluate(()=>mode),'playing');
+ await largeGarden.evaluate(()=>halt());
+ for(const [selector,sign] of [['#left',-1],['#right',1]]){
+  await largeGarden.locator(selector).focus();
+  await largeGarden.keyboard.down('Space');
+  const delta=await largeGarden.evaluate(()=>{target=basket=320;items=[];update(.04);return target-320});
+  await largeGarden.keyboard.up('Space');
+  assert(delta*sign>0,'enlarged movement control works');
+ }
+ await largeGarden.locator('#pause').tap();
+ assert.equal(await largeGarden.evaluate(()=>mode),'paused');
+ await reachable('#start');await largeGarden.locator('#start').tap();
+ assert.equal(await largeGarden.evaluate(()=>mode),'playing');
+ await largeGarden.evaluate(()=>{halt();finish()});
+ await reachable('#start');await largeGarden.locator('#start').tap();
+ assert.equal(await largeGarden.evaluate(()=>mode),'playing');
+ assert(await largeGarden.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Garden 200% text has no horizontal overflow at 320px');
+ console.log('garden: 320px / 200% text instructions, start, movement, pause/resume and restart reachable without horizontal overflow PASS');
+}finally{await largeGarden.close()}
 assert.deepEqual(errors,[]);await browser.close();
