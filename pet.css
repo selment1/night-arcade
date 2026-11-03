@@ -2,6 +2,7 @@
 
 /* Komorebi storybook skin: presentation only, existing progress stays intact. */
 :root{color-scheme:light;--bg:#fff9f0;--panel:#fffdf8;--cream:#574539;--muted:#806d61;--mint:#4d856d;--coral:#e99488}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline-color:#426b54}
 body{background:radial-gradient(circle at 8px 8px,#dac5ac32 1.3px,transparent 1.5px) 0 0/24px 24px,var(--bg);font-family:ui-rounded,'Hiragino Maru Gothic ProN','Yu Gothic',system-ui,sans-serif}
 header{border-color:#ddcbb750}.brand{color:#6b7151}.wallet{background:#fff1c5;color:#795622;border:2px solid #f4db96;box-shadow:0 3px 0 #e6ca8d45}.eyebrow{color:#678361}.heading p:last-child{color:#806d61}.growth{background:#fff0eb;border:2px solid #edcfc3;box-shadow:0 4px 0 #eedac653;border-radius:22px;color:#b36658}.growth span{color:#956b60}
 .pet-room{background:repeating-linear-gradient(90deg,#fff4df 0 35px,#f7ecd4 35px 70px);border:5px solid #fffefa;outline:1px solid #e7d5bc;border-radius:35px;box-shadow:0 9px 0 #e8d8bd60,0 18px 35px #92724d10}.room-top{color:#745c43}.room-top span:first-child{background:#fffdf4c9;border:1px solid #dfc7a17a;border-radius:20px;padding:3px 12px}.room-top span:last-child{background:#e6efd8;color:#5b744c;border:1px solid #c8d6b9;align-self:center}
