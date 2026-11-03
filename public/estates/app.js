@@ -50,6 +50,10 @@ function render(){
   controls.bid.disabled=controls.pass.disabled=controls.amount.disabled=!active||leading;
   controls.info.textContent+=!active?' / この競売から辞退しました。落札結果を待っています。':leading?' / あなたが最高入札者です。他の参加者を待っています。':'';
  }
+ if(s.phase==='trade'&&s.trade?.to===net.id){
+  const notice=document.createElement('p');notice.textContent='あなたに交換の提案が届きました。内容を確認して返答してください。';notice.setAttribute('role','status');actions.append(notice);
+  button('届いた交換の提案を見る',()=>{trades.root.open=true;trades.summary.focus({preventScroll:true});trades.root.scrollIntoView({block:'start',behavior:'instant'});},actions);
+ }
  if(s.phase==='end')send('ターンを終了','end',!mine);
  if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);const bankruptcy=eligibleSend('破産して棄権','bankrupt');if(mine&&bankruptcy.disabled)p.textContent+=' '+bankruptcy.title+'。';}
  $('tile-select').replaceChildren();for(const item of BOARD){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.selected=item.id===selected;$('tile-select').append(option);}
