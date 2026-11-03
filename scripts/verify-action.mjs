@@ -8,7 +8,14 @@ for(const game of ['orbit','garden']){
  await page.goto(`${base}/games/${game}.html`);
  assert.equal(await page.locator('#start').textContent(),'プレイする');
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- await page.locator('#start').click();
+ if(game==='orbit'){
+  for(const viewport of [{width:844,height:390},{width:568,height:320}]){
+   await page.setViewportSize(viewport);
+   assert(await page.locator('#start').evaluate(el=>{const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();return b.top>=v.top&&b.bottom<=v.bottom}), 'ready button fits landscape overlay');
+  }
+  await page.locator('#start').tap();
+  await page.setViewportSize({width:375,height:812});
+ }else await page.locator('#start').click();
  await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>mode),'playing');
  // A queued frame timestamp can precede resume's performance.now() in the same frame.
@@ -20,6 +27,32 @@ for(const game of ['orbit','garden']){
  assert.equal(firstFrame.elapsed,0,game+' time cannot run backwards');
  await page.evaluate(()=>resume());
  if(game==='orbit'){
+  // Rotation must retain the round while fitting the whole orbit and controls.
+  await page.evaluate(()=>{halt();elapsed=5;score=50;scoreEl.textContent=score;spawn=100;meteors=[]});
+  for(const viewport of [{width:844,height:390},{width:568,height:320},{width:320,height:568}]){
+   const state=await page.evaluate(()=>({score,elapsed,angle,direction,swaps}));
+   await page.setViewportSize(viewport);
+   assert.deepEqual(await page.evaluate(()=>({score,elapsed,angle,direction,swaps})),state,'resize retains active round');
+   assert.equal(await page.evaluate(()=>mode),'playing');
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'resized orbit has no horizontal overflow');
+   await page.locator('.board').evaluate(el=>el.scrollIntoView({block:'start'}));
+   const board=await page.locator('.board').boundingBox();
+   const controls=await page.locator('.controls').boundingBox();
+   assert(board.y>=-1&&controls.y+controls.height<=viewport.height,'whole board and controls fit after scrolling');
+   await page.locator('#pause').click();
+   const paused=await page.evaluate(()=>({score,elapsed,angle,direction,swaps}));
+   await page.setViewportSize({width:viewport.height,height:viewport.width});
+   assert.equal(await page.evaluate(()=>mode),'paused');
+   assert.deepEqual(await page.evaluate(()=>({score,elapsed,angle,direction,swaps})),paused,'rotation retains paused round');
+   const resume=page.locator('#start');
+   await resume.scrollIntoViewIfNeeded();
+   const fits=await resume.evaluate(el=>{const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();return b.top>=v.top&&b.bottom<=v.bottom&&b.left>=v.left&&b.right<=v.right});
+   assert(fits,'resume button is not clipped after rotation');
+   await resume.click();await page.evaluate(()=>halt());
+   assert.equal(await page.evaluate(()=>mode),'playing');
+  }
+  await page.setViewportSize({width:375,height:812});
+  console.log('orbit: active/paused rotation preserves round; full board and controls fit mobile portrait/landscape; resume reachable PASS');
   const before=await page.evaluate(()=>direction);
   await page.locator('#flip').click();
   assert.equal(await page.evaluate(()=>direction),-before);
@@ -163,8 +196,13 @@ for(const game of ['orbit','garden']){
  else await page.evaluate(()=>{lives=1;items=[{x:basket,y:529,speed:0,hazard:true}];update(.001)});
  assert.equal(await page.evaluate(()=>mode),'over');
  assert.equal(await page.locator('#start').textContent(),'もう一度プレイ');
+ if(game==='orbit'){
+  await page.setViewportSize({width:568,height:320});
+  assert(await page.locator('#start').evaluate(el=>{const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();return b.top>=v.top&&b.bottom<=v.bottom}), 'restart button fits landscape overlay');
+ }
  const saved=await page.locator('#best').textContent();assert(Number(saved)>0);
  await page.locator('#start').click();assert.equal(await page.locator('#score').textContent(),'0');
+ await page.setViewportSize({width:375,height:812});
  await page.reload();assert.equal(await page.locator('#best').textContent(),saved);
  console.log(`${game}: mobile layout, start, input, scoring, pause/resume, window blur freeze and explicit keyboard resume, collision gameover, restart, best persistence PASS`);
 }
