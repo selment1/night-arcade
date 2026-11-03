@@ -36,18 +36,32 @@ try {
 
  // Pet persistence can fail while the independent best-score key still saves.
  await page.evaluate(()=>{localStorage.removeItem('night-pet-v1');localStorage.removeItem('night-stack-best')});
- await page.addInitScript(()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='night-pet-v1')throw new Error('pet save blocked');return set.call(this,key,value)}});
+ await page.addInitScript(()=>{window.blockPetSave=true;window.blockBestSave=false;const set=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if((key==='night-pet-v1'&&window.blockPetSave)||(key==='night-stack-best'&&window.blockBestSave))throw new Error('pet save blocked');return set.call(this,key,value)}});
  await page.reload();
  const loseAfterOne=async()=>{await page.locator('#aim').fill('240');await page.locator('#aim').dispatchEvent('input');await page.locator('#drop').click();await page.waitForFunction(()=>document.querySelector('#score').textContent==='1',null,{timeout:15000});await page.locator('#aim').fill('45');await page.locator('#aim').dispatchEvent('input');await page.locator('#drop').click();await page.waitForFunction(()=>!document.querySelector('#overlay').hidden&&document.querySelector('#title').textContent==='あっ、落ちちゃった！',null,{timeout:15000})};
  await loseAfterOne();
- assert.match(await page.locator('#result').textContent(),/3 コイン・2 XP！.*報酬を保存できません.*この画面の間だけ/);
+ assert.match(await page.locator('#result').textContent(),/3 コイン・2 XP！/);
  assert.equal(await page.evaluate(()=>localStorage.getItem('night-stack-best')),'1');assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);
  assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);
  // Ended-game input and pause/pagehide cannot award again or erase its notice.
  await page.evaluate(()=>{document.getElementById('drop').onclick();document.getElementById('pause').onclick();window.dispatchEvent(new Event('pagehide'))});
- assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);assert.match(await page.locator('#result').textContent(),/報酬を保存できません/);
+ assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);assert.match(await page.locator('#saveNote').textContent(),/報酬.*この画面の間だけ/);
  await page.locator('#resume').click();assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);
+ assert.equal(await page.locator('#saveNote').isVisible(),true);assert.match(await page.locator('#saveNote').textContent(),/報酬.*この画面の間だけ/);
  await loseAfterOne();const second=await page.evaluate(()=>NightPet.snapshot());assert.equal(second.coins,6);assert.equal(second.gamesPlayed,2);assert.equal(Object.keys(second.rewards).length,2);
  await page.reload();assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,0);assert.equal(await page.locator('#best').textContent(),'1');assert.deepEqual(errors,[]);
- console.log('PASS stack: actual rigid-body settlement; falling ends play; best saved; pause/resume; retry; alternating players; pagehide pause; 320px no overflow; reward once on loss and never reset/pause; selective pet-save failure warns while best persists; ended input no duplicate reward; retry creates one new reward; reload loses only unsaved pet reward; no JS errors.');
+ // Recovery must persist the pending reward before clearing its warning, without erasing best-save failures.
+ await page.evaluate(()=>{localStorage.removeItem('night-stack-best')});await page.reload();
+ await page.evaluate(()=>{window.blockBestSave=true});await loseAfterOne();
+ assert.match(await page.locator('#saveNote').textContent(),/ベスト記録/);
+ assert.match(await page.locator('#saveNote').textContent(),/報酬.*この画面の間だけ/);
+ await page.locator('#resume').click();
+ await page.evaluate(()=>{window.blockPetSave=false;window.dispatchEvent(new CustomEvent('pet:change'))});
+ assert.match(await page.locator('#saveNote').textContent(),/報酬.*この画面の間だけ/);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);
+ await page.evaluate(()=>NightPet.care('play'));
+ assert.doesNotMatch(await page.locator('#saveNote').textContent(),/報酬/);assert.match(await page.locator('#saveNote').textContent(),/ベスト記録/);
+ const recovered=await page.evaluate(()=>JSON.parse(localStorage.getItem('night-pet-v1')));assert.equal(recovered.coins,3);assert.equal(recovered.gamesPlayed,1);
+ await page.reload();assert.equal((await page.evaluate(()=>NightPet.snapshot())).coins,3);assert.equal((await page.evaluate(()=>NightPet.snapshot())).gamesPlayed,1);assert.deepEqual(errors,[]);
+ console.log('PASS stack: actual rigid-body settlement; falling ends play; best saved; pause/resume; retry; alternating players; pagehide pause; 320px no overflow; reward once on loss and never reset/pause; selective pet-save failure warns while best persists; ended input no duplicate reward; retry creates one new reward; reload loses only unsaved pet reward; warning survives retry and synthetic events, durable recovery clears only reward warning and survives reload; no JS errors.');
 }finally{await browser.close();await new Promise(r=>server.close(r))}
