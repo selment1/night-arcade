@@ -29,6 +29,25 @@ if(process.argv.includes('--ui')){
  const square=i=>page.locator(`[data-square="${i}"]`);await square(56).click();assert(await square(47).evaluate(e=>e.classList.contains('legal')));await square(47).click();assert.match(await page.locator('#status').textContent(),/後手/);await square(24).click();await square(33).click();await square(64).click();await square(16).click();await page.getByRole('button',{name:'成る',exact:true}).click();assert.equal(await square(16).innerText(),'馬');await square(10).click();await square(16).click();await page.locator('#bottom-hand [data-drop="B"]').click();await square(40).click();assert.equal(await square(40).innerText(),'角');
  await page.reload();assert.equal(await square(40).innerText(),'角');await page.locator('#undo').click();assert.equal(await square(40).innerText(),'');assert.equal(await page.locator('#bottom-hand [data-drop="B"]').count(),1);await page.locator('#rotate').click();assert.equal(await page.locator('.square').first().getAttribute('data-square'),'80');
  await page.locator('#resign').click();await page.locator('#modal').getByRole('button',{name:'続ける'}).click();assert.match(await page.locator('#status').textContent(),/先手/);await page.locator('#restart').click();await page.locator('#modal').getByRole('button',{name:'新しい対局'}).click();assert.match(await page.locator('#step').innerText(),/第 1 手/);await page.screenshot({path:`artifacts/shogi-${width}.png`,fullPage:true});await ctx.close();}
+ // A failed primary read is not an absent save, even if writes still work.
+ {
+  const ctx=await browser.newContext();const page=await ctx.newPage();await page.goto(base);
+  await page.locator('[data-square="56"]').click();await page.locator('[data-square="47"]').click();
+  const original=await page.evaluate(key=>localStorage.getItem(key),'night-arcade-shogi-v1');
+  await page.addInitScript(key=>{const get=Storage.prototype.getItem;window.readOriginal=k=>get.call(localStorage,k);Storage.prototype.getItem=function(k){if(k===key&&!sessionStorage.getItem('read-recovered'))throw Error('read unavailable');return get.call(this,k)};},'night-arcade-shogi-v1');
+  await page.reload();await page.locator('[data-square="56"]').click();await page.locator('[data-square="47"]').click();
+  assert.equal(await page.evaluate(key=>window.readOriginal(key),'night-arcade-shogi-v1'),original,'failed primary read must not allow overwrite by a fresh match');
+  await page.locator('#undo').click();
+  await page.evaluate(()=>sessionStorage.setItem('read-recovered','yes'));
+  await page.locator('[data-square="56"]').click();await page.locator('[data-square="47"]').click();
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),'night-arcade-shogi-v1'),original,'read recovery requires reload before replacing the original match');
+  await page.locator('#restart').click();await page.locator('#modal').getByRole('button',{name:'新しい対局'}).click();
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),'night-arcade-shogi-v1'),original,'restart must also preserve unreadable original');
+  assert.match(await page.locator('#save-note').innerText(),/再読み込み/);
+  await page.reload();assert.equal(await page.evaluate(key=>localStorage.getItem(key),'night-arcade-shogi-v1'),original);
+  assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),0);await ctx.close();
+ }
+ console.log('PASS: failed primary reads preserve original saves through play/undo and temporary recovery; reload restores the saved match.');
  // Malformed saves must be backed up byte-for-byte before any replacement.
  for(const malformed of ['{broken save',JSON.stringify({version:1,moves:[{from:56,to:47},{from:24,to:99}],matchId:'recover-original'})]){
   const ctx=await browser.newContext();const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);

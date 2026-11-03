@@ -30,6 +30,25 @@ try{
   if(blocked){await page.locator('#undo').click();assert.match(await page.locator('#status').innerText(),/終局/);await page.evaluate(()=>{window.blockReversiSave=false;});await page.locator('#undo').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);await page.reload();await page.locator('#undo').click();await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);}
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);await ctx.close();
  }
+ // A failed primary read is not an absent save, even if writes still work.
+ {
+  const ctx=await browser.newContext();const page=await ctx.newPage();await page.goto(url);
+  await page.locator('[data-index="19"]').click();
+  const original=await page.evaluate(key=>localStorage.getItem(key),'night-reversi-v1');
+  await page.addInitScript(key=>{const get=Storage.prototype.getItem;window.readOriginal=k=>get.call(localStorage,k);Storage.prototype.getItem=function(k){if(k===key&&!sessionStorage.getItem('read-recovered'))throw Error('read unavailable');return get.call(this,k)};},'night-reversi-v1');
+  await page.reload();await page.locator('[data-index="19"]').click();
+  assert.equal(await page.evaluate(key=>window.readOriginal(key),'night-reversi-v1'),original,'failed primary read must not allow overwrite by a fresh match');
+  await page.locator('#undo').click();
+  await page.evaluate(()=>sessionStorage.setItem('read-recovered','yes'));
+  await page.locator('[data-index="19"]').click();
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),'night-reversi-v1'),original,'read recovery requires reload before replacing the original match');
+  page.once('dialog',d=>d.accept());await page.locator('#restart').click();
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),'night-reversi-v1'),original,'restart must also preserve unreadable original');
+  assert.match(await page.locator('#storage').innerText(),/再読み込み/);
+  await page.reload();assert.equal(await page.evaluate(key=>localStorage.getItem(key),'night-reversi-v1'),original);
+  assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),0);await ctx.close();
+ }
+ console.log('PASS: failed primary reads preserve original saves through play/undo and temporary recovery; reload restores the saved match.');
  // Malformed data must be backed up before any new match overwrites it.
  for(const malformed of ['{broken save',JSON.stringify({b:[1],turn:1,history:[]}), 'null', '']){
   const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await ctx.newPage();await page.goto(url);
