@@ -47,7 +47,7 @@ function render(){
   controls.info.textContent+=!active?' / この競売から辞退しました。落札結果を待っています。':leading?' / あなたが最高入札者です。他の参加者を待っています。':'';
  }
  if(s.phase==='end')send('ターンを終了','end',!mine);
- if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);send('破産して棄権','bankrupt',!mine);}
+ if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);const bankruptcy=eligibleSend('破産して棄権','bankrupt');if(mine&&bankruptcy.disabled)p.textContent+=' '+bankruptcy.title+'。';}
  $('tile-select').replaceChildren();for(const item of BOARD){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.selected=item.id===selected;$('tile-select').append(option);}
  const tile=BOARD[selected],prop=s.properties[selected],owner=s.players.find(p=>p.id===prop?.owner);renderDestination(tile,prop,owner);$('detail').textContent=tile.name+(tile.price?' · 購入 '+eur(tile.price):'')+'\n'+(owner?'所有者: '+owner.name+' / 建物 '+prop.houses+(prop.mortgaged?' / 抵当中':''):'未所有')+(tile.rent?'\n基本家賃 '+eur(tile.rent[0]):'');const pa=$('property-actions');pa.replaceChildren();if(prop?.owner===net.id&&!me.bankrupt&&s.phase!=='over')for(const [type,label] of [['build','建築'],['sell','建物を売る'],['mortgage','抵当に入れる'],['redeem','抵当を解除']]){
   // The reducer is immutable: preview legality without spending money or real RNG.
