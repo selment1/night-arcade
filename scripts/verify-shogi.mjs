@@ -46,6 +46,19 @@ if(process.argv.includes('--ui')){
  await blockedPage.locator('#restart').click();await blockedPage.locator('#modal').getByRole('button',{name:'新しい対局'}).click();await blockedPage.reload();
  assert.equal(await blockedPage.evaluate(()=>NightPet.snapshot().coins),30);assert.equal(await blockedPage.evaluate(()=>NightPet.snapshot().xp),20);assert.equal(await blockedPage.evaluate(()=>NightPet.snapshot().gamesPlayed),1);assert.equal(await blockedPage.evaluate(()=>JSON.parse(localStorage.getItem('night-arcade-shogi-v1')).moves.length),0);
  await blocked.close();
+ // Direct restart must settle the blocked legacy reward before replacing the old match.
+ const direct=await browser.newContext();const directPage=await direct.newPage();await directPage.goto(base);
+ await directPage.evaluate(()=>{const cycle=[{from:76,to:67},{from:4,to:13},{from:67,to:76},{from:13,to:4}];localStorage.setItem('night-arcade-shogi-v1',JSON.stringify({version:1,moves:[...cycle,...cycle,...cycle],rotated:false,ended:null}));});
+ await directPage.addInitScript(()=>{window.blockShogiSave=true;const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(window.blockShogiSave&&k==='night-arcade-shogi-v1')throw Error('shogi save unavailable');return original.call(this,k,v);};});await directPage.reload();
+ const originalLegacy=await directPage.evaluate(()=>localStorage.getItem('night-arcade-shogi-v1'));
+ await directPage.locator('#restart').click();await directPage.locator('#modal').getByRole('button',{name:'新しい対局'}).click();
+ assert.equal(await directPage.evaluate(()=>localStorage.getItem('night-arcade-shogi-v1')),originalLegacy);assert.match(await directPage.locator('#status').textContent(),/引き分け/);assert.match(await directPage.locator('#save-note').textContent(),/新しい対局はまだ始めていません/);assert.equal(await directPage.evaluate(()=>NightPet.snapshot().coins),0);
+ await directPage.evaluate(()=>{window.blockShogiSave=false;});
+ // Cancelling even after recovery must not migrate or reset anything.
+ await directPage.locator('#restart').click();await directPage.locator('#modal').getByRole('button',{name:'戻る'}).click();assert.equal(await directPage.evaluate(()=>localStorage.getItem('night-arcade-shogi-v1')),originalLegacy);assert.equal(await directPage.evaluate(()=>NightPet.snapshot().coins),0);
+ await directPage.locator('#restart').click();await directPage.locator('#modal').getByRole('button',{name:'新しい対局'}).click();
+ for(let i=0;i<2;i++){const state=await directPage.evaluate(()=>({pet:NightPet.snapshot(),game:JSON.parse(localStorage.getItem('night-arcade-shogi-v1'))}));assert.equal(state.pet.coins,30);assert.equal(state.pet.xp,20);assert.equal(state.pet.gamesPlayed,1);assert.equal(state.game.moves.length,0);assert.equal(state.game.ended,null);if(i===0)await directPage.reload();}
+ await direct.close();console.log('PASS: direct restart preserves blocked legacy match, cancel is inert, and recovery pays once before replacement/reload.');
  console.log('PASS: blocked legacy terminal save recovers its reward once before restart/reload and clears the stale storage notice.');
  console.log('PASS: legacy completed shogi migration preserves moves/rotation, rewards once across reload and undo/replay.');
  assert.deepEqual(errors,[]);console.log('PASS: Chrome 320/390/1280 UI, real moves, capture, optional promotion, drop, reload, undo, rotation, dialogs; no JS errors.');
