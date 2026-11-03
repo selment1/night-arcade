@@ -6,13 +6,7 @@ import {execFileSync,spawn} from 'node:child_process';
 const run=(cmd,args,cwd=process.cwd())=>execFileSync(cmd,args,{cwd,stdio:'inherit'});
 const repo='https://github.com/selment1/night-arcade.git';
 run('npm',['test']);
-run('node',['scripts/verify-puzzles.mjs']);
-run('node',['scripts/verify-echo.mjs']);
-const testServer=spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:'4187'},stdio:'pipe'});
-try {
- await new Promise((resolve,reject)=>{testServer.stdout.once('data',resolve);testServer.once('error',reject);testServer.once('exit',c=>reject(Error('Test server exited '+c)))});
- execFileSync(process.execPath,['scripts/verify-action.mjs'],{env:{...process.env,ARCADE_URL:'http://127.0.0.1:4187'},stdio:'inherit'});
-} finally {testServer.kill()}
+for(const name of ['pet-core','shogi','reversi','recall','stack','quiz','pet-journey']) run('node',['scripts/verify-'+name+'.mjs',...(name==='shogi'?['--ui']:[])]);
 
 run('git',['add','public','scripts','package.json','package-lock.json','README.md','.gitignore','server.mjs']);
 try{execFileSync('git',['diff','--cached','--quiet'])}catch{run('git',['commit','-m','Improve and verify five browser games'])}

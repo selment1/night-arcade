@@ -1,39 +1,54 @@
-# よふかしアーケード
+# こもれびポケット
 
-Five small, Japanese, mobile-friendly browser games. No accounts, ads, analytics, runtime dependencies, or backend.
+A Japanese, local-first virtual pet and five browser games. Play earns coins and growth points, then unlock companions, clothing and evolution. No payments, ads, accounts, analytics or server-side player data.
 
-- **こだま郵便** — original delayed-echo courier puzzle; six BFS-verified levels, wait, undo, hint.
-- **プリズム回廊** — rotate light paths through six puzzles.
-- **星座の記憶** — constellation pairs, two difficulties.
-- **ほしの軌道** — reverse direction to dodge meteors.
-- **あめつぶガーデン** — catch rain and avoid hazards.
+**Play:** https://selment1.github.io/night-arcade/
 
-## Play / develop
+## The five games
 
-Public site: https://selment1.github.io/night-arcade/
+- **ふたり将棋** (`games/shogi.html`): same-device 9×9 shogi. Captures, drops, promotion, legal king safety, pawn-drop restrictions, checkmate, fourfold repetition/perpetual check, undo and local save. No AI/network/clocks. Entering-king declarations and impasse points are not automatically adjudicated; mutual draw is explicit.
+- **ふたりのオセロ** (`games/reversi.html`): same-device Othello-style 8×8 game, eight-direction flips, automatic pass, end/winner/draw, undo and save.
+- **どうぶつタワー** (`games/stack.html`): real Matter.js rigid-body stacking with animal shapes; a fallen animal ends the game. One-player and alternating two-player modes.
+- **記憶の設計図** (`games/recall.html`): recall color, shape, position and order; three difficulty levels and five escalating rounds.
+- **ひらめき雑学** (`games/quiz.html`): 10-question sampled rounds, four shuffled options, explanations and primary-source links.
 
-`npm ci`, then `npm start` (http://127.0.0.1:4185). Server serves only the public asset allowlist. For same-LAN devices explicitly run `HOST=0.0.0.0 npm start`; the host must stay awake. Public GitHub Pages does not depend on the local machine. Each game also has a direct URL under `games/`.
+## Pet loop
 
-The web manifest supports home-screen launch on compatible browsers. This is a web release, not an App Store or Google Play submission. Internet access is required; no offline cache/service worker is claimed.
+Original characters: もりまる (free), こはく (120 coins), そらもち (180 coins). Each grows from egg → child (50 coins, 60 cumulative growth points) → adult (120 coins, 180 points). Growth points are shared, are not spent and come from games. Stages are per character. Clothing is purchased once and freely equipped thereafter: ribbon 35, glasses 45, scarf 65, crown 100.
 
-## Verification
+Care is free. Feed/pet cooldown 30 seconds; rest 45 seconds. Passive stat decay is bounded to 48 hours per gap and a floor of 20; pets never die or disappear. No notifications or pressure-based monetization.
 
-Google Chrome is required for browser checks (`channel: chrome`).
+Rewards: completed shogi/reversi 30 coins / 20 points (shogi resignation after 12 plies: 8/5; agreed draw: none), stacking 3 coins / 2 points per landed animal capped 40/30, memory 2/2 per fully correct item capped 30 each round, trivia correct×3+10 coins and points per finished ten-question run. Stable run/match IDs prevent repeat result rewards. This is local casual progress, not a tamper-proof or real-money economy. Two-player results contribute to the same browser's pet.
 
-- `npm test`: starts an isolated server; checks 320/390/1280px layouts, links and JavaScript errors; screenshots in ignored `artifacts/`.
-- `node scripts/verify-puzzles.mjs`: all prism stages and both memory modes.
-- `node scripts/verify-echo.mjs`: BFS solution lengths and real-browser completion of all six stages, save/undo/hints/storage-blocked behavior.
-- `node scripts/verify-action.mjs`: with `npm start` running, score/collision/pause/restart/persistence. `ARCADE_URL` overrides origin.
-- `BASE_URL=https://selment1.github.io/night-arcade/ npm test`: verify the delivered origin.
+## Development and tests
 
-Browser viewport tests are not physical phone tests. Progress is stored locally, scoped to browser and origin; no cross-device sync. Clearing site data clears game records. Storage-disabled environments can still play, without durable saves.
+`npm ci` then `npm start` serves the explicit public allowlist at http://127.0.0.1:4185. Google Chrome is used by Playwright (`channel: chrome`).
 
-## Publish
+- `npm test`: isolated server; pet care, cooldown, purchases, evolution, clothing, reload and storage-denied UI; all five game pages/home links at 320/390/1280px.
+- `node scripts/verify-pet-core.mjs`: transactions, duplicate prevention, corrupt storage, partial storage failure, decay and live game rewards.
+- `node scripts/verify-shogi.mjs --ui`: engine fixtures, legal-play invariants and promotion/capture/drop through actual browser controls.
+- `node scripts/verify-reversi.mjs`: eight-direction/pass/end fixtures.
+- `node scripts/verify-recall.mjs`: both board-game UI and memory timer/win/loss/progression checks.
+- `node scripts/verify-stack.mjs`: physical landing/fall, pause, two-player turns and reward events.
+- `node scripts/verify-quiz.mjs`: dataset and trivia UI/reward checks.
+- `node scripts/verify-pet-journey.mjs`: actual quiz play → coins → evolution → outfit → reload, without seeded balances or direct reward calls. Supports `BASE_URL`.
+- `BASE_URL=https://selment1.github.io/night-arcade/ npm test`: delivered origin smoke test. It uses isolated browser state only.
 
-`node scripts/deploy.mjs` runs checks, commits selected source files and pushes `main`, then publishes only `public/` to `gh-pages` without force-pushing. It requires authorized GitHub access and starts its own isolated test servers. GitHub Pages source is `gh-pages` root. No paid infrastructure is required. Confirm Pages build and live browser checks after uploading.
+Screenshots are in ignored `artifacts/`. Viewport emulation is not physical-phone verification.
 
-## Design choices
+## Persistence and privacy
 
-Existing option reviewed: [Phaser](https://github.com/phaserjs/phaser), an MIT HTML5 game framework. These small, bespoke mechanics use native DOM/Canvas to avoid shipping an engine; Playwright provides established browser verification. [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) supplies managed static hosting. All illustrations are CSS/SVG/Canvas geometry rather than third-party media.
+`night-pet-v1` stores balance, points, companions, stages, clothes, care times and a reward ledger. Corrupt JSON is backed up to `night-pet-v1-recovery` before recovery. Read/write failures retain current-session progress and display a notice. Records are tied to the current browser and origin: clearing site data deletes them, and no cross-device sync is provided. Existing first-edition game files and storage keys remain intact; they are not featured in the new collection and do not award pet coins.
 
-Storage keys: `night-arcade-echo-v1` (progress/best per stage), `night-prism-best` (highest completed stage), `night-memory-best-6` / `night-memory-best-8` (fewest pairs attempted), `night-arcade-orbit-v1` and `night-arcade-garden-v1` (high scores). Read/write failures show a session-only notice.
+A web manifest enables home-screen launching where supported, but offline caching is not claimed. This is a web app, not an App Store/Google Play release.
+
+## Deployment
+
+`node scripts/deploy.mjs` runs required suites, stages only project source, pushes main, then uploads only public assets to `gh-pages` without force. Wait for Pages build and check public URLs/artifact bytes before declaring release. Public hosting does not depend on the development machine staying awake; scheduled development does.
+
+## Dependencies and sources
+
+- Matter.js 0.20.0 vendored in `public/vendor/`, MIT license included. Physics engine source: https://github.com/liabru/matter-js .
+- Playwright is project-local test tooling.
+- Existing shogi engine was inspected but not reused because its legal evasion and hand-count parsing had correctness gaps; this project's engine is independently implemented and tested against rule fixtures. Rules: https://www.shogi.or.jp/knowledge/shogi/ and https://www.shogi.or.jp/match/taikyoku_rules/ .
+- Trivia references are stored with each original question. SVG pet art and CSS/Canvas game visuals are original geometry; no third-party franchise assets are used.

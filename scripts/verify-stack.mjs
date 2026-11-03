@@ -1,0 +1,36 @@
+import {chromium} from '@playwright/test';
+import http from 'node:http';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const root=new URL('../public/',import.meta.url);
+const server=http.createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname;const data=await readFile(new URL('.'+path,root));res.setHeader('Content-Type',path.endsWith('.js')?'text/javascript':'text/html');res.end(data)}catch{res.statusCode=404;res.end()}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const browser=await chromium.launch({headless:true,channel:'chrome'});
+try {
+ const page=await browser.newPage({viewport:{width:320,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(`http://127.0.0.1:${server.address().port}/games/stack.html`);
+ await page.evaluate(()=>{window.__rewards=[];window.NightPet={reward:p=>window.__rewards.push(p)}});
+ assert.equal(await page.locator('#drop').isEnabled(),true);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.locator('#drop').click();
+ assert.equal(await page.locator('#drop').isDisabled(),true);
+ await page.waitForFunction(()=>document.querySelector('#score').textContent==='1',{},{timeout:15000});
+ assert.equal(await page.locator('#drop').isEnabled(),true);
+ await page.locator('#pause').click();assert.equal(await page.locator('#overlay').isVisible(),true);assert.equal(await page.locator('#drop').isDisabled(),true);
+ await page.locator('#resume').click();assert.equal(await page.locator('#drop').isEnabled(),true);
+ await page.locator('#aim').fill('45');await page.locator('#aim').dispatchEvent('input');await page.locator('#drop').click();
+ await page.waitForFunction(()=>document.querySelector('#title').textContent==='あっ、落ちちゃった！',{},{timeout:15000});
+ assert.equal(await page.evaluate(()=>window.__rewards.length),1);assert.deepEqual(await page.evaluate(()=>({coins:window.__rewards[0].coins,xp:window.__rewards[0].xp})),{coins:3,xp:2});
+ assert.equal(await page.locator('#score').textContent(),'1');assert.equal(await page.locator('#best').textContent(),'1');
+ assert.equal(await page.locator('#drop').isDisabled(),true);
+ await page.locator('#resume').click();assert.equal(await page.locator('#score').textContent(),'0');assert.equal(await page.locator('#drop').isEnabled(),true);
+ await page.locator('#mode').selectOption('2');assert.match(await page.locator('#status').textContent(),/プレイヤー 1/);
+ await page.locator('#aim').fill('240');await page.locator('#aim').dispatchEvent('input');await page.locator('#drop').click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('プレイヤー 2'),{},{timeout:15000});
+ await page.locator('#rotate').click();await page.locator('#restart').click();assert.equal(await page.locator('#score').textContent(),'0');
+ await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));assert.equal(await page.locator('#overlay').isVisible(),true);
+ assert.equal(await page.evaluate(()=>window.__rewards.length),1);
+ await page.locator('#resume').click();assert.deepEqual(errors,[]);
+ await page.screenshot({path:new URL('../artifacts/stack-mobile.png',import.meta.url).pathname,fullPage:true});
+ console.log('PASS stack: actual rigid-body settlement; falling ends play; best saved; pause/resume; retry; alternating players; pagehide pause; 320px no overflow; reward once on loss and never reset/pause; no JS errors.');
+}finally{await browser.close();await new Promise(r=>server.close(r))}
