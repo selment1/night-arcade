@@ -52,3 +52,9 @@ A web manifest enables home-screen launching where supported, but offline cachin
 - Playwright is project-local test tooling.
 - Existing shogi engine was inspected but not reused because its legal evasion and hand-count parsing had correctness gaps; this project's engine is independently implemented and tested against rule fixtures. Rules: https://www.shogi.or.jp/knowledge/shogi/ and https://www.shogi.or.jp/match/taikyoku_rules/ .
 - Trivia references are stored with each original question. SVG pet art and CSS/Canvas game visuals are original geometry; no third-party franchise assets are used.
+
+## Two independent games
+
+The pet app at `/night-arcade/` and World Heritage Travel at `/night-arcade/estates/` are separate products. No shared currency, character unlocks or navigation. The latter supports 2–4 players through real PeerJS/WebRTC with euro-denominated fictional assets. Host must stay online; reconnection, trading and universal cellular/NAT connectivity are not promised. See `docs/ESTATES-RULES.md` and `docs/ESTATES-NETWORK.md`.
+
+Pet care defaults to time-based iD-inspired care with original pixel SVG characters, food, hygiene, medicine, sleep, favorites and friendship. Timings are independent web-game rules, not a firmware reproduction. Original coin-driven evolution remains in ゲーム育成; previous saves are preserved. New care data uses `night-pet-id-v1`. See `docs/ID-CARE.md`.

@@ -10,7 +10,7 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:true});const errors=[];await mkdir('artifacts',{recursive:true});
  for(const width of [320,390,1280]){
   const context=await browser.newContext({viewport:{width,height:844},hasTouch:width<500,isMobile:width<500});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base);await page.waitForLoadState('networkidle');assert.equal(await page.locator('.card').count(),5);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'home fits '+width);
+  await page.goto(base+'?mode=arcade');await page.waitForLoadState('networkidle');assert.equal(await page.locator('.card').count(),5);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'home fits '+width);
   const box=await page.locator('[data-care="feed"]').boundingBox();assert(box.y+box.height<=844,'care above fold');
   await page.locator('[data-care="feed"]').click();assert.match(await page.locator('#notice').textContent(),/もぐもぐ/);await page.locator('[data-care="feed"]').click();assert.match(await page.locator('#notice').textContent(),/あと/);
   await page.locator('#characters-open').click();await page.locator('[data-item="kitsune"]').click();assert.match(await page.locator('#notice').textContent(),/あと120/);
@@ -23,6 +23,6 @@ try{
    if(width===390)await page.screenshot({path:`artifacts/new-${game}.png`,fullPage:true});const home=page.locator('a[href="../index.html"]');assert.equal(await home.count(),1);await home.click();assert.equal(await page.locator('.card').count(),5);assert.equal(await page.locator('#coins').textContent(),'35');
   }await context.close();
  }
- const blocked=await browser.newContext({viewport:{width:320,height:844}});await blocked.addInitScript(()=>{Object.defineProperty(window,'localStorage',{get(){throw Error('blocked')}})});const p=await blocked.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto(base);assert(await p.locator('#storage').isVisible());await p.locator('[data-care="play"]').click();assert.match(await p.locator('#notice').textContent(),/なでなで/);await blocked.close();
+ const blocked=await browser.newContext({viewport:{width:320,height:844}});await blocked.addInitScript(()=>{Object.defineProperty(window,'localStorage',{get(){throw Error('blocked')}})});const p=await blocked.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto(base+'?mode=arcade');assert(await p.locator('#storage').isVisible());await p.locator('[data-care="play"]').click();assert.match(await p.locator('#notice').textContent(),/なでなで/);await blocked.close();
  assert.deepEqual(errors,[]);console.log('PASS: pet care/cooldown/coins/evolution/outfit/save/storage-denied + all five games/home links at 320/390/1280; no JS errors');
 }finally{await browser?.close();server?.kill()}

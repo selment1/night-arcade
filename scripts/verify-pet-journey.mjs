@@ -21,7 +21,7 @@ try{
  const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  page.on('response',response=>{if(response.url().startsWith(base)&&response.status()>=400)errors.push(`${response.status()} ${response.url()}`)});
- await page.goto(base,{waitUntil:'networkidle'});
+ await page.goto(base+'?mode=arcade',{waitUntil:'networkidle'});
  assert.equal(await page.locator('#coins').textContent(),'0');
  assert.equal(await page.locator('#stage').textContent(),'たまご');
  await page.locator('a[href="games/quiz.html"]').click();
