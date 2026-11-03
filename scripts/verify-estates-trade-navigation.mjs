@@ -33,7 +33,25 @@ try{
   assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),before);
   await page.getByRole('button',{name:'条件変更をやめる',exact:true}).click();
   await page.getByRole('button',{name:'見送る',exact:true}).click();assert.equal(await jump.count(),0);
+  // A personal mortgage receipt must preserve an otherwise valid unsent proposal.
+  await page.reload();await page.locator('#solo').click();
+  await page.evaluate(()=>{const n=estateNetwork;clearTimeout(n.timer);n.schedule=()=>{};for(const i of [1,5])n.state.properties[i].owner=n.id;n.state.properties[3].owner=n.state.players[1].id;n.emit();});
+  await page.locator('#trade-panel summary').click();
+  await page.locator('[name=give][value="1"]').check();await page.locator('[name=take][value="3"]').check();
+  await page.locator('[name=cash-direction]').selectOption('receive');await page.locator('[name=trade-cash]').fill('17');
+  const target=await page.locator('[name=trade-target]').inputValue();
+  await page.locator('#tile-select').selectOption('5');await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();
+  await page.locator('.payment-sheet').waitFor();assert.match(await page.locator('.payment-sheet').textContent(),/\+€100/);await page.locator('.payment-confirm').click();
+  assert.equal(await page.locator('[name=trade-target]').inputValue(),target);
+  assert.equal(await page.locator('[name=trade-cash]').inputValue(),'17');assert.equal(await page.locator('[name=cash-direction]').inputValue(),'receive');
+  assert(await page.locator('[name=give][value="1"]').isChecked());assert(await page.locator('[name=take][value="3"]').isChecked());
+  // If a selected deed itself becomes ineligible, prune it without losing the other terms.
+  await page.locator('#tile-select').selectOption('1');await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();await page.locator('.payment-confirm').click();
+  assert.equal(await page.locator('[name=give][value="1"]').count(),0);assert(await page.locator('[name=take][value="3"]').isChecked());assert.equal(await page.locator('[name=trade-cash]').inputValue(),'17');
+  await page.getByRole('button',{name:'この条件を提案',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>({give:estateNetwork.state.trade.give,take:estateNetwork.state.trade.take,takeCash:estateNetwork.state.trade.takeCash})),{give:[],take:[3],takeCash:17});
+  await page.getByRole('button',{name:'提案を取り下げる',exact:true}).click();assert.equal(await page.locator('[name=trade-cash]').inputValue(),'0');assert(!(await page.locator('[name=take][value="3"]').isChecked()));
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.close();
  }
- console.log('PASS trade navigation320/390: explicit open/scroll/focus, unchanged state/inspection/counter draft, removed after rejection.');
+ console.log('PASS trade navigation320/390: explicit open/scroll/focus, unchanged state/inspection/counter draft, removed after rejection; personal receipt retains valid draft, prunes ineligible deeds, clears sent/cancelled proposal.');
 }finally{await browser?.close();server?.kill()}
