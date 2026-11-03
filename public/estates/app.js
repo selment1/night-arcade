@@ -1,17 +1,19 @@
 import {BOARD} from './engine.js';
 import {EstateNetwork} from './network.js';
+import {EstateSolo} from './solo.js';
 const $=id=>document.getElementById(id), colors=['#df765e','#5488c4','#aa77ba','#c79e33'], eur=n=>'€'+Number(n).toLocaleString('ja-JP');
 let selected=0,lastPosition='';
-const net=new EstateNetwork(render);window.estateNetwork=net;
+let net=new EstateNetwork(render);window.estateNetwork=net;
 const param=new URLSearchParams(location.search).get('room');if(param)$('code').value=param;
 function button(label,fn,parent,disabled=false){const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.onclick=fn;parent.append(b);return b;}
-async function connect(join){$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('create').disabled=$('join').disabled=false;}}
+async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
+$('solo').onclick=()=>{net=new EstateSolo(render,$('nickname').value);window.estateNetwork=net;lastPosition='';net.emit();};
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);render();};
 $('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>net.leave();
 $('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'世界遺産トラベル',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
 function coordinates(i){if(i<=10)return[11-i,11];if(i<=20)return[1,21-i];if(i<=30)return[i-19,1];return[11,i-29];}
 function render(){
- $('status').textContent=net.status;const joined=net.members.some(m=>m.id===net.id);$('entry').hidden=joined;if(!joined&&net.status!=='通信を接続中…')$('create').disabled=$('join').disabled=false;$('lobby').hidden=!joined||!!net.state;$('game').hidden=!net.state;$('leave').hidden=!joined;
+ $('status').textContent=net.status;const joined=net.members.some(m=>m.id===net.id);$('entry').hidden=joined;if(!joined&&net.status!=='通信を接続中…')$('solo').disabled=$('create').disabled=$('join').disabled=false;$('lobby').hidden=!joined||!!net.state;$('game').hidden=!net.state;$('leave').hidden=!joined;
  $('room').textContent=net.room;$('share-url').value=location.origin+location.pathname+'?room='+net.room;$('members').replaceChildren();net.members.forEach(m=>{const li=document.createElement('li');li.textContent=m.name+(m.id===net.id?'（あなた）':'')+(m.connected?'':'（退出）');$('members').append(li);});$('start').hidden=!net.host;$('start').disabled=net.members.length<2;
  const s=net.state;if(!s)return;const me=s.players.find(p=>p.id===net.id),current=s.players[s.turn],mine=current.id===net.id;
  $('players').replaceChildren();s.players.forEach((p,i)=>{const box=document.createElement('div');box.className='player'+(i===s.turn?' active':'');box.style.setProperty('--player',colors[i]);const name=document.createElement('span');name.textContent=p.name+(p.id===net.id?' • あなた':'')+(p.bankrupt?' • 破産':'');const money=document.createElement('strong');money.textContent=eur(p.money);const detail=document.createElement('small');detail.textContent='所有 '+Object.values(s.properties).filter(v=>v.owner===p.id).length+'か所'+(p.jail?' / 拘留中':'');box.append(name,money,detail);$('players').append(box);});

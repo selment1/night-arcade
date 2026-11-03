@@ -58,3 +58,6 @@ Verified against UNESCO World Heritage Centre official listing pages on 2026-11-
 - ヴェルサイユ — [Palace and Park of Versailles](https://whc.unesco.org/en/list/83/)
 - タージ・マハル — [Taj Mahal](https://whc.unesco.org/en/list/252/)
 - パリのセーヌ河岸 — [Paris, Banks of the Seine](https://whc.unesco.org/en/list/600/)
+
+## Solo CPU play
+The independent entry button starts one human against one CPU locally, without opening PeerJS signaling. Same validated rules, money and dice as online play. CPU buys with a cash reserve, bids up to a public-state valuation, develops complete sets, redeems mortgages and sells/mortgages to settle debts before bankruptcy. Actions are paced at650ms. This is a basic heuristic opponent, not a difficulty-ranked AI. Closing/reloading ends the match; no solo persistence or offline asset cache is claimed.

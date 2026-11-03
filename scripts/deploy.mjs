@@ -6,7 +6,7 @@ import {execFileSync,spawn} from 'node:child_process';
 const run=(cmd,args,cwd=process.cwd())=>execFileSync(cmd,args,{cwd,stdio:'inherit'});
 const repo='https://github.com/selment1/night-arcade.git';
 run('npm',['test']);
-for(const name of ['id-care','id-ui','estates-engine','pet-core','shogi','reversi','recall','stack','quiz','pet-journey']) run('node',['scripts/verify-'+name+'.mjs',...(name==='shogi'?['--ui']:[])]);
+for(const name of ['id-care','id-ui','estates-engine','estates-solo','pet-core','shogi','reversi','recall','stack','quiz','pet-journey']) run('node',['scripts/verify-'+name+'.mjs',...(name==='shogi'?['--ui']:[])]);
 
 run('git',['add','public','scripts','package.json','package-lock.json','README.md','docs','.gitignore','server.mjs']);
 try{execFileSync('git',['diff','--cached','--quiet'])}catch{run('git',['commit','-m','Improve and verify five browser games'])}
