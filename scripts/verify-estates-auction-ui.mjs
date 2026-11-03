@@ -96,6 +96,23 @@ try{
   assert.equal(await release.isEnabled(),true,'exact release funds are sufficient');
   await release.click();
   assert.deepEqual(await page.evaluate(()=>({money:estateNetwork.state.players[0].money,jail:estateNetwork.state.players[0].jail})),{money:0,jail:0});
+  // Exact realizable-value boundary: cash 0 + two stations at mortgage 100 each.
+  await page.evaluate(()=>{const n=estateNetwork;for(const v of Object.values(n.state.properties)){v.owner=null;v.houses=0;v.mortgaged=false;}for(const id of [5,15])n.state.properties[id].owner=n.id;n.state.phase='debt';n.state.pending={amount:200,creditor:null};n.state.players[0].money=0;n.emit();});
+  const bankruptcy=page.getByRole('button',{name:'破産して棄権',exact:true});
+  assert.equal(await bankruptcy.isDisabled(),true,'exact realizable assets prevent bankruptcy');
+  assert.match(await page.locator('#actions p').textContent(),/建物の売却と抵当で支払えます/,'liquidation guidance is visible without hover');
+  const beforeBankruptcy=await page.evaluate(()=>JSON.stringify(estateNetwork.state));
+  await page.locator('#tile-select').selectOption('5');
+  assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),beforeBankruptcy,'bankruptcy preview cannot transfer assets or eliminate player');
+  await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();
+  assert.equal(await bankruptcy.isDisabled(),true,'mortgaging does not change total realizable value');
+  await page.evaluate(()=>{estateNetwork.state.pending.amount=201;estateNetwork.emit();});
+  assert.equal(await bankruptcy.isEnabled(),true,'one euro short permits bankruptcy');
+  await page.evaluate(()=>{estateNetwork.halted=true;estateNetwork.emit();});
+  assert.equal(await bankruptcy.isDisabled(),true,'halted match blocks bankruptcy');
+  await page.evaluate(()=>{estateNetwork.halted=false;estateNetwork.emit();});
+  await bankruptcy.click();
+  assert.deepEqual(await page.evaluate(()=>({bankrupt:estateNetwork.state.players[0].bankrupt,money:estateNetwork.state.players[0].money,owner:estateNetwork.state.properties[5].owner,turn:estateNetwork.state.turn})),{bankrupt:true,money:0,owner:null,turn:1},'valid bankruptcy executes and advances turn');
   assert.deepEqual(errors,[]);await page.close();
  }
  console.log('PASS auction UI: 320/390px, actual CPU updates preserve input node/focus/draft, pristine defaults and minimum update, failed bid retains draft, highest bidder waits, outbid player re-enabled, withdrawal explained, new auction resets; asset controls enforce auction/debt/other-turn/disconnection restrictions and debt mortgage still executes.');
