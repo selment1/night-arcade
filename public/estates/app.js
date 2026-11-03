@@ -54,14 +54,19 @@ function soloChoices(result){
  if(result.ok){button('続きから',()=>{close();startSolo(result.value)},dialog).id='solo-continue';button('新しく始める（保存を置換）',()=>{try{startSolo(null,true);close();}catch{note.textContent='新しい旅を保存できませんでした。元の保存を維持します。';}},dialog).id='solo-new';}
  button('保存を削除',()=>{try{localStorage.removeItem(SOLO_SAVE_KEY);close();$('status').textContent='保存を削除しました。CPUと遊ぶから新しく始められます。';}catch{note.textContent='保存を削除できませんでした。';}},dialog).id='solo-discard';const back=button('戻る',close,dialog);(result.ok?dialog.querySelector('#solo-continue'):back).autofocus=true;document.body.append(dialog);dialog.showModal();
 }
+function showSoloEntryError(message){
+ // CPU start can be below the fold on phones; expose the existing live status.
+ const status=$('status');status.textContent=message;status.tabIndex=-1;
+ status.focus({preventScroll:true});status.scrollIntoView({block:'center',behavior:'instant'});
+}
 $('solo').onclick=async()=>{
  if(soloOpening)return;soloOpening=true;
  try{
- if(!soloLease){if(!navigator.locks){$('status').textContent='このブラウザでは安全な1人プレイ保存を利用できません。';return;}
+ if(!soloLease){if(!navigator.locks){showSoloEntryError('このブラウザでは安全な1人プレイ保存を利用できません。');return;}
  const acquired=await new Promise((resolve,reject)=>{navigator.locks.request('night-arcade.estates.solo.writer',{mode:'exclusive',ifAvailable:true},lock=>{if(!lock){resolve(false);return;}soloLease=true;resolve(true);return new Promise(()=>{});}).catch(reject);});
- if(!acquired){$('status').textContent='別のタブで1人プレイを開いています。そのタブを閉じてから再度お試しください。';return;}}
+ if(!acquired){showSoloEntryError('別のタブで1人プレイを開いています。そのタブを閉じてから再度お試しください。');return;}}
  const result=readSoloSave(localStorage);if(!result.ok||result.value)soloChoices(result);else startSolo(null);
- }catch{$('status').textContent='保存データを読み込めませんでした。元のデータは変更していません。';}finally{soloOpening=false;}
+ }catch{showSoloEntryError('保存データを読み込めませんでした。元のデータは変更していません。');}finally{soloOpening=false;}
 };
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);inspectionPinned=true;render();};
 $('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
