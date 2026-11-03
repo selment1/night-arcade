@@ -16,6 +16,6 @@ No resumability is claimed. A reload creates a fresh peer identity. Once a match
 
 ## Gameplay scope
 
-World Heritage names come from the board dataset source links. Original travel branding and visual layout. Property buying, rent, sets/building, auctions, mortgages, detention, bankruptcy and game end are engine-controlled. Player-to-player trades are not supported, disclosed in app. Not represented as an official Monopoly product or a perfect implementation of all official rules.
+World Heritage names come from the board dataset source links. Original travel branding and visual layout. Property buying, rent, sets/building, auctions, mortgages, detention, bankruptcy and game end are engine-controlled. Player-to-player trades use host-validated offer/counter/accept/reject/cancel actions, authenticated connection identity, revision and proposal IDs. Cash and properties exchange atomically only on acceptance. Not represented as an official Monopoly product or a perfect implementation of all official rules.
 
 Verified 2026-11-03 locally using two isolated Chrome contexts, default public PeerJS signaling and actual open WebRTC data channel. Full suite passed, including host roll / purchase / end-turn, guest roll, tampered actor/state rejection, and guest departure detection. Heartbeat checks disconnected peers (about 18–22 seconds); an interrupted mobile app does not silently leave a frozen game. 320px screenshot visually inspected. Live HTTPS-origin verification is a separate parent deployment step.

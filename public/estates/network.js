@@ -1,5 +1,5 @@
-import {createGame,act} from './engine.js?v=expansion-1';
-const TYPES=new Set(['roll','buy','decline','bid','pass','end','build','sell','mortgage','redeem','payJail','useCard','bankrupt']);
+import {createGame,act} from './engine.js?v=trade-1';
+const TYPES=new Set(['roll','buy','decline','bid','pass','end','build','sell','mortgage','redeem','payJail','useCard','bankrupt','offerTrade','counterTrade','acceptTrade','rejectTrade','cancelTrade']);
 export class EstateNetwork {
  constructor(update){this.update=update;this.members=[];this.connections=new Map();this.lastSeen=new Map();this.state=null;this.id='';this.room='';this.host=false;this.status='未接続';this.closed=false;}
  emit(){this.update(this);}
@@ -34,6 +34,8 @@ export class EstateNetwork {
  broadcast(){const snapshot={type:'snapshot',members:this.members,state:this.state,status:this.status,halted:!!this.halted};for(const c of this.connections.values())if(c.open)c.send(snapshot);this.emit();}
  start(){if(!this.host||this.state||this.members.length<2)return;this.state=createGame(this.members);this.status='対戦中';this.broadcast();}
  dispatch(id,action,revision){if(!this.host||!this.state||this.halted)return;if(!action||!TYPES.has(action.type)||revision!==this.state.revision){this.error(id,'古い操作です。最新の盤面で操作してください。');return;}const clean={type:action.type};if(['build','sell','mortgage','redeem'].includes(clean.type)){if(!Number.isInteger(action.property)||action.property<0||action.property>39)return;clean.property=action.property;}if(clean.type==='bid'){if(!Number.isSafeInteger(action.amount)||action.amount<1||action.amount>1e9)return;clean.amount=action.amount;}
+  if(['offerTrade','counterTrade'].includes(clean.type)){clean.to=action.to;clean.give=action.give;clean.take=action.take;clean.giveCash=action.giveCash;clean.takeCash=action.takeCash;}
+  if(['counterTrade','acceptTrade','rejectTrade','cancelTrade'].includes(clean.type))clean.tradeId=action.tradeId;
   const result=act(this.state,id,clean);if(!result.ok){this.error(id,result.error||'今はその操作ができません');return;}this.state=result.state;this.status='対戦中';this.broadcast();
  }
  error(id,message){if(id===this.id)this.fail(message);else this.connections.get(id)?.send({type:'error',message});}

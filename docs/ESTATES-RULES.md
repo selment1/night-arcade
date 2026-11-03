@@ -67,3 +67,11 @@ The independent entry button starts one human against one to three CPUs locally,
 `cards.js` exports `CARD_DECKS.chance` and `.chest` with original Japanese titles, full effect descriptions and machine-readable effects. State contains `decks[type].remaining` (card IDs), each player has `heldCards: [{type,id}]` plus the backwards-compatible `cards` count, and `cardSequence` monotonically increases. `lastCard` is `{type,id,title,text,sequence,playerId}`. `cardEvents` resets on each successful action and lists every newly drawn card in resolution order, including chained backward-into-letter landings; UI should use these typed events instead of guessing by log text. All are JSON-serializable for the host-authoritative connection. Existing in-memory older states lazily initialize deck data on first draw.
 
 Run `node scripts/verify-estates-cards.mjs`: every one of the 24 effects in four-player state, finite independent decks, held card exclusion/return/creditor transfer, chained draws, forward GO income, backward tax, movement rent, debt liquidation and bankruptcy. Engine baseline remains `node scripts/verify-estates-engine.mjs`.
+
+## Negotiated trades
+
+At the start or end of their turn, a player can propose one or more properties from either side with a nonnegative integer € difference in one direction. The recipient can accept, reject or counter; the current proposer can withdraw. The original turn and phase resume after agreement/rejection/cancellation. Pending offers freeze other game actions. No cash/property moves until acceptance; ownership, participants, available funds and proposal identity are revalidated atomically.
+
+Current scope permits only unmortgaged properties whose entire color group has no buildings, including stations/utilities. This deliberately excludes mortgaged-property transfer interest, card trading, debt-phase negotiations, and developed-property transfers. The UI states the limits. No expiration auto-accepts an offer. CPU recipients use public printed prices and a €100 cash reserve; they accept equal-or-better offers and otherwise reject. CPU does not initiate offers or bluff.
+
+Verify with `verify-estates-trading.mjs`, actual solo offer accept/reject at320/390, and real two-context WebRTC proposal/counter/accept/cancel with exact balances and ownership synchronization.

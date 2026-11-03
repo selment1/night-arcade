@@ -1,7 +1,9 @@
-import {BOARD,createGame,act} from './engine.js?v=expansion-1';
+import {cpuTrade} from './trading.js?v=trade-1';
+import {BOARD,createGame,act} from './engine.js?v=trade-1';
 // Decisions use only public state and the same rule validator as human moves.
 export function cpuAction(s,id){
  const p=s.players.find(p=>p.id===id);if(!p||p.bankrupt||s.phase==='over')return null;
+ if(s.phase==='trade')return cpuTrade(s,id);
  if(s.phase==='auction'){const a=s.auction;if(!a.active.includes(id)||a.highestBidder===id)return null;const limit=Math.min(p.money,Math.floor(BOARD[a.property].price*1.15),Math.max(0,p.money-100));return a.highestBid+10<=limit?{type:'bid',amount:a.highestBid+10}:{type:'pass'};}
  if(s.players[s.turn].id!==id)return null;
  const legal=a=>act(s,id,a,()=>0.3).ok;

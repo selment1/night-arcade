@@ -1,3 +1,4 @@
+import {tradeAction} from './trading.js?v=trade-1';
 import { BOARD } from './board.js?v=expansion-1';
 import { CARD_DECKS } from './cards.js?v=expansion-1';
 export { BOARD };
@@ -75,10 +76,12 @@ export function act(state,playerId,action,rng=Math.random){
  requireRule(action&&typeof action.type==='string','操作が不正です');
  requireRule(state.phase!=='over','ゲームは終了しています');
  const actor=state.players.find(p=>p.id===playerId);requireRule(actor&&!actor.bankrupt,'参加していないプレイヤーです');
- if(state.phase==='auction')requireRule(['bid','pass'].includes(action.type),'競売の入札・パスを選んでください');
+ if(state.phase==='trade')requireRule(['acceptTrade','rejectTrade','cancelTrade','counterTrade'].includes(action.type),'交渉の返答または取り下げを選んでください');
+ else if(state.phase==='auction')requireRule(['bid','pass'].includes(action.type),'競売の入札・パスを選んでください');
  else requireRule(current(state).id===playerId,'あなたの手番ではありません');
  const s=structuredClone(state),p=s.players.find(x=>x.id===playerId),type=action.type;s.cardEvents=[];
- if(type==='roll'){
+ if(['offerTrade','counterTrade','acceptTrade','rejectTrade','cancelTrade'].includes(type)){note(s,p.name+'：'+tradeAction(s,playerId,action));}
+ else if(type==='roll'){
   requireRule(s.phase==='roll','今はサイコロを振れません');s.dice=[randomIndex(rng,6)+1,randomIndex(rng,6)+1];const [a,b]=s.dice,steps=a+b;note(s,`${p.name} のサイコロ: ${a}・${b}`);
   if(p.jail){s.doubles=0;if(a===b){p.jail=0;move(s,steps,rng);}else if(p.jail>1){p.jail--;s.phase='end';note(s,'拘留中。次の手番で再挑戦。');}else{if(charge(s,50,null,'拘留解除',{type:'jailMove',steps})){p.jail=0;move(s,steps,rng);}}}
   else{if(a===b)s.doubles++;else s.doubles=0;if(s.doubles===3)jail(s);else move(s,steps,rng);}
