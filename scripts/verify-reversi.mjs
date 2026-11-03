@@ -27,8 +27,24 @@ try{
    if(blocked){assert.equal(saved.matchId,undefined);assert.equal(saved.b[0],0);assert.equal(await page.locator('#storage').isVisible(),true);}
    else{assert.equal(saved.b[0],1);assert.equal(saved.history.length,1);assert.equal(typeof saved.matchId,'string');assert(saved.matchId.length>=4);if(matchId)assert.equal(saved.matchId,matchId);matchId=saved.matchId;await page.locator('#undo').click();}
   }
-  if(blocked){await page.locator('#undo').click();await page.evaluate(()=>{window.blockReversiSave=false;});await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);await page.reload();await page.locator('#undo').click();await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);}
+  if(blocked){await page.locator('#undo').click();assert.match(await page.locator('#status').innerText(),/終局/);await page.evaluate(()=>{window.blockReversiSave=false;});await page.locator('#undo').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);await page.reload();await page.locator('#undo').click();await page.locator('#board button[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);}
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);await ctx.close();
  }
+ // Terminal legacy recovery must settle before undo or a confirmed restart destroys it.
+ for(const action of ['undo','restart']){
+  const ctx=await browser.newContext();const page=await ctx.newPage();await page.goto(url);
+  await page.evaluate(()=>{const before=Array(64).fill(1);before[0]=0;before[1]=2;localStorage.setItem('night-reversi-v1',JSON.stringify({b:Array(64).fill(1),turn:1,last:0,ended:true,history:[{b:before,turn:1,last:2,ended:false}]}));});
+  await page.addInitScript(()=>{window.blockReversiSave=true;const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='night-reversi-v1'&&window.blockReversiSave)throw Error('blocked');return original.call(this,k,v)};});await page.reload();
+  const original=await page.evaluate(()=>localStorage.getItem('night-reversi-v1'));
+  if(action==='restart'){page.once('dialog',d=>d.dismiss());await page.locator('#restart').click();assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),original);}
+  if(action==='restart')page.once('dialog',d=>d.accept());await page.locator('#'+action).click();
+  assert.match(await page.locator('#status').innerText(),/終局/);assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),original);assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),0);
+  await page.evaluate(()=>{window.blockReversiSave=false;});if(action==='restart')page.once('dialog',d=>d.accept());await page.locator('#'+action).click();
+  const recovered=await page.evaluate(()=>({pet:NightPet.snapshot(),game:JSON.parse(localStorage.getItem('night-reversi-v1'))}));assert.equal(recovered.pet.coins,30);assert.equal(recovered.pet.xp,20);assert.equal(recovered.pet.gamesPlayed,1);assert.equal(recovered.game.ended,false);assert.equal(recovered.game.history.length,0);assert.equal(await page.locator('#storage').isVisible(),false);
+  await page.reload();assert.equal(await page.evaluate(()=>NightPet.snapshot().coins),30);
+  if(action==='undo'){await page.evaluate(()=>{window.blockReversiSave=false;});await page.locator('[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('night-reversi-v1')).matchId),recovered.game.matchId);}
+  await ctx.close();
+ }
+ console.log('PASS: terminal legacy undo/restart preserve blocked state, cancel is inert, recovery settles exactly once.');
  console.log('PASS: Reversi legacy identity, reload/undo reward deduplication, blocked-save deferral and recovery, mobile layout.');
 }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));}
