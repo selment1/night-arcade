@@ -284,4 +284,50 @@ try{
  assert(await largeGarden.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Garden 200% text has no horizontal overflow at 320px');
  console.log('garden: 320px / 200% text instructions, start, movement, pause/resume and restart reachable without horizontal overflow PASS');
 }finally{await largeGarden.close()}
+// Model 200% text enlargement, including explicitly sized text, on narrow portrait.
+const largeOrbit=await browser.newPage({viewport:{width:320,height:780},isMobile:true,hasTouch:true});
+largeOrbit.on('pageerror',e=>errors.push(e.message));
+try{
+ await largeOrbit.goto(`${base}/games/orbit.html`);
+ await largeOrbit.evaluate(()=>{
+  const sizes=[...document.querySelectorAll('body,body *')].map(el=>[el,getComputedStyle(el).fontSize]);
+  for(const [el,size] of sizes)el.style.fontSize=`${parseFloat(size)*2}px`;
+ });
+ const reachable=async selector=>{
+  const element=largeOrbit.locator(selector);
+  await element.scrollIntoViewIfNeeded();
+  assert(await element.evaluate(el=>{
+   const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();
+   return b.top>=v.top&&b.bottom<=v.bottom&&b.left>=v.left&&b.right<=v.right;
+  }),`${selector} can be scrolled fully into enlarged-text overlay`);
+ };
+ // Check both ends of instructions: a paragraph may itself exceed the board height.
+ assert(await largeOrbit.locator('#veil').evaluate(el=>{
+  el.scrollTop=0;
+  return document.querySelector('#badge').getBoundingClientRect().top>=el.getBoundingClientRect().top;
+ }),'enlarged-text overlay beginning is not clipped above scroll origin');
+ await reachable('#heading');
+ assert(await largeOrbit.locator('#description').evaluate(el=>{
+  const v=document.querySelector('#veil');
+  el.scrollIntoView({block:'start'});
+  const first=el.getBoundingClientRect().top>=v.getBoundingClientRect().top-1;
+  el.scrollIntoView({block:'end'});
+  return first&&el.getBoundingClientRect().bottom<=v.getBoundingClientRect().bottom+1;
+ }),'all enlarged instructions can be reached by scrolling');
+ await reachable('#start');await largeOrbit.locator('#start').tap();
+ assert.equal(await largeOrbit.evaluate(()=>mode),'playing');
+ await largeOrbit.evaluate(()=>halt());
+ const before=await largeOrbit.evaluate(()=>direction);
+ await largeOrbit.locator('#flip').tap();
+ assert.equal(await largeOrbit.evaluate(()=>direction),-before,'enlarged flip control works');
+ await largeOrbit.locator('#pause').tap();
+ assert.equal(await largeOrbit.evaluate(()=>mode),'paused');
+ await reachable('#start');await largeOrbit.locator('#start').tap();
+ assert.equal(await largeOrbit.evaluate(()=>mode),'playing');
+ await largeOrbit.evaluate(()=>{halt();finish()});
+ await reachable('#start');await largeOrbit.locator('#start').tap();
+ assert.equal(await largeOrbit.evaluate(()=>mode),'playing');
+ assert(await largeOrbit.evaluate(()=>document.documentElement.scrollWidth<=320&&innerWidth===320),'Orbit 200% text has no horizontal overflow at 320px');
+ console.log('orbit: 320px / 200% text instructions, start, flip, pause/resume and restart reachable without horizontal overflow PASS');
+}finally{await largeOrbit.close()}
 assert.deepEqual(errors,[]);await browser.close();
