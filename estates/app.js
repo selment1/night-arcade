@@ -40,9 +40,16 @@ function startSolo(saved,replace=false){
  soloRecord=saved||{gameId:crypto.randomUUID(),saveRevision:0};soloSaveFailed=false;
  net.presentationDelay=()=>Math.max(0,effects.busyUntil-Date.now());net.presentationBlocked=()=>effects.busy||info.exitDialog.open||soloSaveFailed;
  effects.observe(saved&&saved.presentationState.revision<saved.state.revision?saved.presentationState:net.state);soloStarting=false;lastPosition='';inspectionPinned=false;net.emit();
+ // Wait until the resume dialog closes; pending presentations own their focus.
+ queueMicrotask(()=>{
+  if(document.querySelector('dialog[open]')||effects.busy)return;
+  const target=document.querySelector('#actions button:not(:disabled)')||$('phase');
+  if(target===$('phase'))target.tabIndex=-1;
+  target.focus();
+ });
 }
 function soloChoices(result){
- const dialog=document.createElement('dialog');dialog.className='info-dialog';dialog.id='solo-resume';const title=document.createElement('h2');title.textContent=result.ok?'保存した旅があります':'保存データを読み込めません';const note=document.createElement('p');note.textContent=result.ok?'続きを遊ぶか、保存した旅を置き換えて新しく始めます。':'元のデータは変更していません。破損・非対応の保存を削除する場合だけ「保存を削除」を選んでください。';dialog.append(title,note);
+ const dialog=document.createElement('dialog');dialog.className='info-dialog';dialog.id='solo-resume';const title=document.createElement('h2');title.id='solo-resume-title';dialog.setAttribute('aria-labelledby',title.id);title.textContent=result.ok?'保存した旅があります':'保存データを読み込めません';const note=document.createElement('p');note.textContent=result.ok?'続きを遊ぶか、保存した旅を置き換えて新しく始めます。':'元のデータは変更していません。破損・非対応の保存を削除する場合だけ「保存を削除」を選んでください。';dialog.append(title,note);
  const close=()=>{dialog.close();dialog.remove();};dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
  if(result.ok){button('続きから',()=>{close();startSolo(result.value)},dialog).id='solo-continue';button('新しく始める（保存を置換）',()=>{try{startSolo(null,true);close();}catch{note.textContent='新しい旅を保存できませんでした。元の保存を維持します。';}},dialog).id='solo-new';}
  button('保存を削除',()=>{try{localStorage.removeItem(SOLO_SAVE_KEY);close();$('status').textContent='保存を削除しました。CPUと遊ぶから新しく始められます。';}catch{note.textContent='保存を削除できませんでした。';}},dialog).id='solo-discard';const back=button('戻る',close,dialog);(result.ok?dialog.querySelector('#solo-continue'):back).autofocus=true;document.body.append(dialog);dialog.showModal();
