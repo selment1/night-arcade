@@ -1,3 +1,4 @@
+import {startFreshSolo} from './estate-test-solo.mjs';
 import {acknowledgeReceipts} from './estate-test-confirmations.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from '@playwright/test';
@@ -9,7 +10,7 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:true});
  for(const width of [320,390]){
   const page=await browser.newPage({viewport:{width,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await acknowledgeReceipts(page);await page.goto(new URL('estates/',base).href);await page.locator('#cpu-count').selectOption('3');await page.locator('#solo').click();
+  await acknowledgeReceipts(page);await page.goto(new URL('estates/',base).href);await page.locator('#cpu-count').selectOption('3');await startFreshSolo(page);
   // Isolate an expensive auction while retaining the real 1500ms CPU scheduler.
   await page.evaluate(()=>{const n=estateNetwork;n.state.phase='buy';n.state.pending={property:39};n.state.players[0].position=39;n.emit();});
   await page.getByRole('button',{name:'見送る → 競売',exact:true}).click();
@@ -50,7 +51,7 @@ try{
   const settleReceipt=()=>page.waitForFunction(()=>!document.querySelector('#phase').textContent.includes('確認'));
   const assetDisabled=()=>page.locator('#property-actions button').evaluateAll(nodes=>nodes.map(n=>n.disabled));
   assert.deepEqual(await assetDisabled(),[true,true,true,true],'auction blocks all asset actions even on own turn');
-  await page.evaluate(()=>{const n=estateNetwork;n.state.phase='debt';n.state.auction=null;n.state.pending={amount:2000,creditor:null};n.emit();});
+  await page.evaluate(()=>{const n=estateNetwork;n.state.phase='debt';n.state.auction=null;n.state.pending={amount:2000,creditor:null,reason:'テスト支払い'};n.emit();});
   assert.deepEqual(await assetDisabled(),[true,true,false,true],'debt permits mortgage but not empty building sale or spending');
   const revisionBefore=await page.evaluate(()=>estateNetwork.state.revision);
   await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();await settleReceipt();
@@ -87,7 +88,7 @@ try{
   assert.equal(await buy.isEnabled(),true,'exact purchase funds are sufficient');
   await buy.click();await settleReceipt();
   assert.equal(await page.evaluate(()=>estateNetwork.state.players[0].money),0);
-  await page.evaluate(()=>{const n=estateNetwork;n.state.phase='roll';n.state.pending=null;n.state.players[0].jail=3;n.state.players[0].money=49;n.emit();});
+  await page.evaluate(()=>{const n=estateNetwork;n.state.phase='roll';n.state.pending=null;n.state.players[0].jail=3;n.state.players[0].position=10;n.state.players[0].money=49;n.emit();});
   const release=page.getByRole('button',{name:'€50で釈放',exact:true});
   assert.equal(await release.isDisabled(),true,'unaffordable voluntary release is blocked');
   assert.equal(await page.getByRole('button',{name:'サイコロを振る',exact:true}).isEnabled(),true,'free escape attempt remains available');
@@ -99,7 +100,7 @@ try{
   await release.click();await settleReceipt();
   assert.deepEqual(await page.evaluate(()=>({money:estateNetwork.state.players[0].money,jail:estateNetwork.state.players[0].jail})),{money:0,jail:0});
   // Exact realizable-value boundary: cash 0 + two stations at mortgage 100 each.
-  await page.evaluate(()=>{const n=estateNetwork;for(const v of Object.values(n.state.properties)){v.owner=null;v.houses=0;v.mortgaged=false;}for(const id of [5,15])n.state.properties[id].owner=n.id;n.state.phase='debt';n.state.pending={amount:200,creditor:null};n.state.players[0].money=0;n.emit();});
+  await page.evaluate(()=>{const n=estateNetwork;for(const v of Object.values(n.state.properties)){v.owner=null;v.houses=0;v.mortgaged=false;}for(const id of [5,15])n.state.properties[id].owner=n.id;n.state.phase='debt';n.state.pending={amount:200,creditor:null,reason:'テスト支払い'};n.state.players[0].money=0;n.emit();});
   const bankruptcy=page.getByRole('button',{name:'破産して棄権',exact:true});
   assert.equal(await bankruptcy.isDisabled(),true,'exact realizable assets prevent bankruptcy');
   assert.match(await page.locator('#actions p').textContent(),/建物の売却と抵当で支払えます/,'liquidation guidance is visible without hover');

@@ -60,7 +60,7 @@ Verified against UNESCO World Heritage Centre official listing pages on 2026-11-
 - パリのセーヌ河岸 — [Paris, Banks of the Seine](https://whc.unesco.org/en/list/600/)
 
 ## Solo CPU play
-The independent entry button starts one human against one to three CPUs locally, without opening PeerJS signaling. Same validated rules, money and dice as online play. CPU buys with a cash reserve, bids up to a public-state valuation, develops complete sets, redeems mortgages and sells/mortgages to settle debts before bankruptcy. Actions are paced at1500ms. This is a basic heuristic opponent, not a difficulty-ranked AI. Closing/reloading ends the match; no solo persistence or offline asset cache is claimed.
+The independent entry button starts one human against one to three CPUs locally, without opening PeerJS signaling. Same validated rules, money and dice as online play. CPU buys with a cash reserve, bids up to a public-state valuation, develops complete sets, redeems mortgages and sells/mortgages to settle debts before bankruptcy. Actions are paced at1500ms. This is a basic heuristic opponent, not a difficulty-ranked AI. Solo progress and the last fully acknowledged presentation are saved locally. The CPU entry offers Continue/New/Discard under an exclusive lifetime Web Lock; corrupt saves are retained until explicit discard. Online matches still have no reconnect/restore. No offline asset cache is claimed.
 
 ## Card state and verification
 

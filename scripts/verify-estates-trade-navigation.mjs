@@ -1,3 +1,4 @@
+import {startFreshSolo} from './estate-test-solo.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from '@playwright/test';
 import {spawn} from 'node:child_process';
@@ -8,7 +9,7 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:true});
  for(const width of [320,390]){
   const page=await browser.newPage({viewport:{width,height:844},reducedMotion:'reduce'});
-  await page.goto(new URL('estates/',base).href);await page.locator('#solo').click();
+  await page.goto(new URL('estates/',base).href);await startFreshSolo(page);
   await page.locator('#tile-select').selectOption('37');
   await page.evaluate(async()=>{
    const n=estateNetwork;clearTimeout(n.timer);n.schedule=()=>{};
@@ -34,7 +35,7 @@ try{
   await page.getByRole('button',{name:'条件変更をやめる',exact:true}).click();
   await page.getByRole('button',{name:'見送る',exact:true}).click();assert.equal(await jump.count(),0);
   // A personal mortgage receipt must preserve an otherwise valid unsent proposal.
-  await page.reload();await page.locator('#solo').click();
+  await page.reload();await startFreshSolo(page);
   await page.evaluate(()=>{const n=estateNetwork;clearTimeout(n.timer);n.schedule=()=>{};for(const i of [1,5])n.state.properties[i].owner=n.id;n.state.properties[3].owner=n.state.players[1].id;n.emit();});
   await page.locator('#trade-panel summary').click();
   await page.locator('[name=give][value="1"]').check();await page.locator('[name=take][value="3"]').check();
