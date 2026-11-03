@@ -1,3 +1,4 @@
+import {acknowledgeReceipts} from './estate-test-confirmations.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from '@playwright/test';
 import {spawn} from 'node:child_process';
@@ -8,7 +9,7 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:true});
  for(const width of [320,390]){
   const page=await browser.newPage({viewport:{width,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(new URL('estates/',base).href);await page.locator('#cpu-count').selectOption('3');await page.locator('#solo').click();
+  await acknowledgeReceipts(page);await page.goto(new URL('estates/',base).href);await page.locator('#cpu-count').selectOption('3');await page.locator('#solo').click();
   // Isolate an expensive auction while retaining the real 1500ms CPU scheduler.
   await page.evaluate(()=>{const n=estateNetwork;n.state.phase='buy';n.state.pending={property:39};n.state.players[0].position=39;n.emit();});
   await page.getByRole('button',{name:'見送る → 競売',exact:true}).click();
@@ -46,22 +47,23 @@ try{
   // Stop CPU scheduling so transitions below are deterministic fixtures.
   await page.evaluate(()=>{const n=estateNetwork;clearTimeout(n.timer);n.schedule=()=>{};n.state.properties[1].owner=n.id;n.emit();});
   await page.locator('#tile-select').selectOption('1');
+  const settleReceipt=()=>page.waitForFunction(()=>!document.querySelector('#phase').textContent.includes('確認'));
   const assetDisabled=()=>page.locator('#property-actions button').evaluateAll(nodes=>nodes.map(n=>n.disabled));
   assert.deepEqual(await assetDisabled(),[true,true,true,true],'auction blocks all asset actions even on own turn');
   await page.evaluate(()=>{const n=estateNetwork;n.state.phase='debt';n.state.auction=null;n.state.pending={amount:2000,creditor:null};n.emit();});
   assert.deepEqual(await assetDisabled(),[true,true,false,true],'debt permits mortgage but not empty building sale or spending');
   const revisionBefore=await page.evaluate(()=>estateNetwork.state.revision);
-  await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();
+  await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();await settleReceipt();
   assert.deepEqual(await page.evaluate(()=>({mortgaged:estateNetwork.state.properties[1].mortgaged,phase:estateNetwork.state.phase,revision:estateNetwork.state.revision})),{mortgaged:true,phase:'debt',revision:revisionBefore+1},'liquidation remains usable during debt');
   await page.evaluate(()=>{const n=estateNetwork;n.state.phase='end';n.state.pending=null;n.emit();});
   assert.deepEqual(await assetDisabled(),[true,true,true,false],'mortgaged lot permits only redemption');
-  await page.getByRole('button',{name:'抵当を解除',exact:true}).click();
+  await page.getByRole('button',{name:'抵当を解除',exact:true}).click();await settleReceipt();
   assert.deepEqual(await assetDisabled(),[true,true,false,true],'incomplete set cannot build, empty lot cannot sell or redeem');
   await page.evaluate(()=>{const n=estateNetwork;n.state.properties[3].owner=n.id;n.emit();});
   assert.deepEqual(await assetDisabled(),[false,true,false,true],'complete undeveloped set can build or mortgage');
-  await page.getByRole('button',{name:'建築',exact:true}).click();
+  await page.getByRole('button',{name:'建築',exact:true}).click();await settleReceipt();
   assert.deepEqual(await assetDisabled(),[true,false,true,true],'uneven build and mortgage with buildings are blocked');
-  await page.getByRole('button',{name:'建物を売る',exact:true}).click();
+  await page.getByRole('button',{name:'建物を売る',exact:true}).click();await settleReceipt();
   await page.evaluate(()=>{const n=estateNetwork;n.state.players[0].money=0;n.emit();});
   assert.deepEqual(await assetDisabled(),[true,true,false,true],'unaffordable building is blocked');
   await page.evaluate(()=>{const n=estateNetwork;n.state.properties[1].mortgaged=true;n.emit();});
@@ -83,7 +85,7 @@ try{
   assert.equal(await page.getByRole('button',{name:'見送る → 競売',exact:true}).isEnabled(),true,'auction remains available');
   await page.evaluate(()=>{estateNetwork.state.players[0].money=400;estateNetwork.emit();});
   assert.equal(await buy.isEnabled(),true,'exact purchase funds are sufficient');
-  await buy.click();
+  await buy.click();await settleReceipt();
   assert.equal(await page.evaluate(()=>estateNetwork.state.players[0].money),0);
   await page.evaluate(()=>{const n=estateNetwork;n.state.phase='roll';n.state.pending=null;n.state.players[0].jail=3;n.state.players[0].money=49;n.emit();});
   const release=page.getByRole('button',{name:'€50で釈放',exact:true});
@@ -94,7 +96,7 @@ try{
   assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),beforeRelease,'release preview never spends money or changes jail');
   await page.evaluate(()=>{estateNetwork.state.players[0].money=50;estateNetwork.emit();});
   assert.equal(await release.isEnabled(),true,'exact release funds are sufficient');
-  await release.click();
+  await release.click();await settleReceipt();
   assert.deepEqual(await page.evaluate(()=>({money:estateNetwork.state.players[0].money,jail:estateNetwork.state.players[0].jail})),{money:0,jail:0});
   // Exact realizable-value boundary: cash 0 + two stations at mortgage 100 each.
   await page.evaluate(()=>{const n=estateNetwork;for(const v of Object.values(n.state.properties)){v.owner=null;v.houses=0;v.mortgaged=false;}for(const id of [5,15])n.state.properties[id].owner=n.id;n.state.phase='debt';n.state.pending={amount:200,creditor:null};n.state.players[0].money=0;n.emit();});
@@ -104,7 +106,7 @@ try{
   const beforeBankruptcy=await page.evaluate(()=>JSON.stringify(estateNetwork.state));
   await page.locator('#tile-select').selectOption('5');
   assert.equal(await page.evaluate(()=>JSON.stringify(estateNetwork.state)),beforeBankruptcy,'bankruptcy preview cannot transfer assets or eliminate player');
-  await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();
+  await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();await settleReceipt();
   assert.equal(await bankruptcy.isDisabled(),true,'mortgaging does not change total realizable value');
   await page.evaluate(()=>{estateNetwork.state.pending.amount=201;estateNetwork.emit();});
   assert.equal(await bankruptcy.isEnabled(),true,'one euro short permits bankruptcy');

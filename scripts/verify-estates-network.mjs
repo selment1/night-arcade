@@ -1,3 +1,4 @@
+import {acknowledgeReceipts} from './estate-test-confirmations.mjs';
 import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -6,7 +7,7 @@ const external=process.env.BASE_URL;const server=external?null:spawn(process.exe
 try{
  if(server)await new Promise((ok,no)=>{server.stdout.once('data',ok);server.once('error',no);server.once('exit',c=>no(Error('server '+c)));});
  browser=await chromium.launch({channel:'chrome',headless:true});const errors=[];const h=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),g=await browser.newContext({viewport:{width:320,height:844},isMobile:true,hasTouch:true});const host=await h.newPage(),guest=await g.newPage();for(const p of [host,guest])p.on('pageerror',e=>errors.push(e.message));
- await host.goto(new URL('estates/',base).href);await host.locator('#nickname').fill('ホスト');await host.locator('#create').click();await host.waitForFunction(()=>window.estateNetwork?.members.length===1,{},{timeout:30000});const code=await host.locator('#room').textContent();
+ await acknowledgeReceipts(host);await acknowledgeReceipts(guest);await host.goto(new URL('estates/',base).href);await host.locator('#nickname').fill('ホスト');await host.locator('#create').click();await host.waitForFunction(()=>window.estateNetwork?.members.length===1,{},{timeout:30000});const code=await host.locator('#room').textContent();
  await guest.goto(new URL('estates/?room='+code,base).href);await guest.locator('#nickname').fill('<img onerror=alert(1)>');await guest.locator('#join').click();await host.waitForFunction(()=>window.estateNetwork.members.length===2,{},{timeout:30000});await guest.waitForFunction(()=>window.estateNetwork.members.length===2);
  assert.equal(await host.locator('#members img').count(),0,'nickname not interpreted as HTML');assert(await guest.evaluate(()=>estateNetwork.connection.peerConnection.connectionState==='connected'),'real RTCPeerConnection connected');assert(await guest.evaluate(()=>estateNetwork.connection.dataChannel.readyState==='open'),'real data channel open');
  await host.locator('#start').click();await guest.waitForFunction(()=>!!estateNetwork.state);assert.equal(await guest.locator('.tile').count(),40);for(const p of [host,guest])assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no mobile horizontal overflow');

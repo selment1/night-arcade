@@ -24,3 +24,11 @@ The dice are CSS 3D presentation, not a second physics/random engine. Their fina
 Human mutation controls wait approximately 2.05 seconds for a normal roll presentation. CPU scheduling respects the remaining presentation delay via an optional callback; rules and authoritative revisions remain unchanged. Quick/reduced-motion resolves without the large tray. Network peers continue sharing only rules state, not audio preferences. The tray can be dismissed with “盤面を見る”; this hides it, does not alter the outcome or shorten the rules presentation lock.
 
 Verification: `node scripts/verify-estates-immersion.mjs`, effects, solo, expansion and actual WebRTC suites plus full deployment gates. Screenshots under ignored artifacts/; all tests use isolated browser contexts. Repeat immersion and network checks against BASE_URL after Pages succeeds.
+
+## Explicit confirmations and buildings
+
+Cards now wait for a tap to reveal, then a second tap to apply the presentation. Until then, the prior visible state is retained (including balances, logs and held cards); the rules reducer has already acknowledged the actual result. Cash changes are shown together on an explicit receipt with before/after balances and signed amounts. “確認して次へ” is required; time, Escape, reduced motion and quick effects do not dismiss it. CPU scheduling pauses while a presentation is pending and resumes on acknowledgment. Online players acknowledge their own local presentation independently; incoming acknowledged revisions queue in order, rather than replacing an unread card or receipt. This is not a new all-peer acknowledgment protocol.
+
+Permanent green house/count badges (1–4) and a contrasting red H for one hotel follow authoritative property state. Sales update or remove them; tile accessible names and the selected full-name line include the building count. The square screen-fit perimeter is unchanged.
+
+`verify-estates-confirmation.mjs` tests actual card draws, cash/audio spoiler prevention, manual receipt persistence, CPU3 pause/resume, actual hotel building and sales down to zero, and mobile board markers. Older gameplay tests explicitly acknowledge receipts using a test-only helper; the confirmation test does not use it.
