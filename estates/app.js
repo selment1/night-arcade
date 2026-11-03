@@ -41,7 +41,9 @@ function render(){
    controls.bid=button('€ 入札',()=>dispatch({type:'bid',amount:Number(amount.value)}),actions);controls.pass=send('入札をやめる','pass');auctionControls=controls;
   }
   const controls=auctionControls;controls.info.textContent=BOARD[a.property].name+' / 最高入札 '+eur(a.highestBid);controls.amount.min=String(a.highestBid+1);if(!controls.dirty)controls.amount.value=String(a.highestBid+10);
-  const active=a.active.includes(net.id);controls.bid.disabled=controls.pass.disabled=!active;
+  const active=a.active.includes(net.id),leading=a.highestBidder===net.id;
+  controls.bid.disabled=controls.pass.disabled=controls.amount.disabled=!active||leading;
+  controls.info.textContent+=!active?' / この競売から辞退しました。落札結果を待っています。':leading?' / あなたが最高入札者です。他の参加者を待っています。':'';
  }
  if(s.phase==='end')send('ターンを終了','end',!mine);
  if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);send('破産して棄権','bankrupt',!mine);}
