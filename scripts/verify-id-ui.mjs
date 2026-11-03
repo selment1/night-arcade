@@ -2,10 +2,10 @@ import {chromium} from '@playwright/test';
 import {spawn} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {mkdirSync} from 'node:fs';
-const port='4198',base=`http://127.0.0.1:${port}`;
-const server=spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:port},stdio:'pipe'});let browser;
+const port='4198',base=process.env.BASE_URL||`http://127.0.0.1:${port}`;
+const server=process.env.BASE_URL?null:spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:port},stdio:'pipe'});let browser;
 try{
- await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);server.once('exit',code=>reject(Error('Server exited '+code)))});
+ if(server)await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);server.once('exit',code=>reject(Error('Server exited '+code)))});
  browser=await chromium.launch({channel:'chrome',headless:true});
  mkdirSync('artifacts',{recursive:true});
  for(const width of [320,390]){
@@ -30,4 +30,4 @@ try{
  assert.deepEqual(errors,[]);await page.close();
  }
  console.log('PASS: default iD egg/hatch, feeding/snacks, room/lights, toilet, care-mode cleanup, sleep and 320/390px fit. Screenshots artifacts/id-care-{320,390}.png');
-}finally{await browser?.close();server.kill()}
+}finally{await browser?.close();server?.kill()}
