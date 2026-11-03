@@ -1,9 +1,10 @@
-import {InfoCenter} from './about.js?v=review-1';
+import {SOLO_SAVE_KEY,readSoloSave,createSoloSave,writeSoloSave} from './solo-save.js?v=resume-1';
+import {InfoCenter} from './about.js?v=resume-1';
 import {TradePanel} from './trade-view.js?v=trade-1';
 import {BOARD,act} from './engine.js?v=trade-1';
 import {EstateNetwork} from './network.js?v=trade-1';
 import {EstateSolo} from './solo.js?v=review-1';
-import {JourneyEffects} from './effects.js?v=personal-1';
+import {JourneyEffects} from './effects.js?v=resume-1';
 import {JourneyAudio} from './audio.js?v=immersive-1';
 import {renderDestination} from './photo-view.js?v=review-1';
 import {DeedCollection,rentLabel} from './deeds.js?v=deeds-1';
@@ -12,9 +13,9 @@ let selected=0,lastPosition='',auctionControls=null,inspectionPinned=false;
 function inspectSpace(id,selector){selected=id;inspectionPinned=true;render();portfolio.open(selector);}
 const portfolio=new DeedCollection(inspectSpace);const trades=new TradePanel(action=>dispatch(action));
 const selectionBar=document.createElement('div');selectionBar.className='board-selection';const selectionName=document.createElement('strong');selectionName.id='selected-space-name';const backToToken=document.createElement('button');backToToken.type='button';backToToken.textContent='現在地へ';backToToken.onclick=()=>{inspectionPinned=false;lastPosition='';render();};selectionBar.append(selectionName,backToToken);document.getElementById('board-viewport').after(selectionBar);
-const sound=new JourneyAudio();sound.mount();const effects=new JourneyEffects({sound,board:BOARD,viewer:()=>net.id});effects.onReady=()=>{render();if(net.solo)net.schedule();};let pendingRollTimer;
+const sound=new JourneyAudio();sound.mount();const effects=new JourneyEffects({sound,board:BOARD,viewer:()=>net.id,onAcknowledged:()=>persistSolo()});effects.onReady=()=>{render();if(net.solo)net.schedule();};let pendingRollTimer;
 function dispatch(action){
- if(effects.busy)return;
+ if(effects.busy||net.halted)return;
  if(action.type==='roll'){if(!effects.startRoll())return;if(!effects.short)document.querySelector('.board-section').scrollIntoView({block:'center',behavior:'instant'});document.querySelectorAll('#actions button').forEach(b=>b.disabled=true);clearTimeout(pendingRollTimer);pendingRollTimer=setTimeout(()=>{effects.cancelPending();render();},6000);}
  net.action(action);
 }
@@ -23,7 +24,38 @@ document.addEventListener('visibilitychange',()=>{if(net.solo){if(document.hidde
 const param=new URLSearchParams(location.search).get('room');if(param)$('code').value=param;
 function button(label,fn,parent,disabled=false){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-label',label);b.disabled=disabled;b.onclick=fn;parent.append(b);return b;}
 async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
-$('solo').onclick=()=>{effects.reset();net=new EstateSolo(render,$('nickname').value,Number($('cpu-count').value));window.estateNetwork=net;net.presentationDelay=()=>Math.max(0,effects.busyUntil-Date.now());net.presentationBlocked=()=>effects.busy||info.exitDialog.open;lastPosition='';inspectionPinned=false;net.emit();};
+let soloLease=false,soloOpening=false,soloRecord=null,soloStarting=false,soloSaveFailed=false;
+function persistSolo(){
+ if(!net.solo||!soloLease||soloStarting||soloSaveFailed||!soloRecord||!effects.acknowledgedState)return;
+ // Rendering an unchanged revision must not rewrite the saved game.
+ if(soloRecord.state?.revision===net.state.revision&&soloRecord.presentationState?.revision===effects.acknowledgedState.revision)return;
+ try{const value=createSoloSave({...soloRecord,saveRevision:soloRecord.saveRevision+1,state:net.state,presentationState:effects.acknowledgedState});const result=writeSoloSave(localStorage,value);if(!result.ok)throw Error(result.error);soloRecord=value;}
+ catch{soloSaveFailed=true;net.halted=true;clearTimeout(net.timer);net.status='保存できませんでした。これ以上進めず、ブラウザの保存設定を確認してください。';$('status').textContent=net.status;}
+}
+function startSolo(saved,replace=false){
+ const candidate=new EstateSolo(render,$('nickname').value,Number($('cpu-count').value));
+ if(replace){const value=createSoloSave({gameId:crypto.randomUUID(),saveRevision:1,state:candidate.state,presentationState:candidate.state});localStorage.setItem(SOLO_SAVE_KEY,JSON.stringify(value));saved=value;}
+ soloStarting=true;effects.reset();net=candidate;window.estateNetwork=net;
+ if(saved){net.state=saved.state;net.members=saved.state.players.map(p=>({id:p.id,name:p.name,connected:true}));}
+ soloRecord=saved||{gameId:crypto.randomUUID(),saveRevision:0};soloSaveFailed=false;
+ net.presentationDelay=()=>Math.max(0,effects.busyUntil-Date.now());net.presentationBlocked=()=>effects.busy||info.exitDialog.open||soloSaveFailed;
+ effects.observe(saved&&saved.presentationState.revision<saved.state.revision?saved.presentationState:net.state);soloStarting=false;lastPosition='';inspectionPinned=false;net.emit();
+}
+function soloChoices(result){
+ const dialog=document.createElement('dialog');dialog.className='info-dialog';dialog.id='solo-resume';const title=document.createElement('h2');title.textContent=result.ok?'保存した旅があります':'保存データを読み込めません';const note=document.createElement('p');note.textContent=result.ok?'続きを遊ぶか、保存した旅を置き換えて新しく始めます。':'元のデータは変更していません。破損・非対応の保存を削除する場合だけ「保存を削除」を選んでください。';dialog.append(title,note);
+ const close=()=>{dialog.close();dialog.remove();};
+ if(result.ok){button('続きから',()=>{close();startSolo(result.value)},dialog).id='solo-continue';button('新しく始める（保存を置換）',()=>{try{startSolo(null,true);close();}catch{note.textContent='新しい旅を保存できませんでした。元の保存を維持します。';}},dialog).id='solo-new';}
+ button('保存を削除',()=>{try{localStorage.removeItem(SOLO_SAVE_KEY);close();$('status').textContent='保存を削除しました。CPUと遊ぶから新しく始められます。';}catch{note.textContent='保存を削除できませんでした。';}},dialog).id='solo-discard';button('戻る',close,dialog);document.body.append(dialog);dialog.showModal();
+}
+$('solo').onclick=async()=>{
+ if(soloOpening)return;soloOpening=true;
+ try{
+ if(!soloLease){if(!navigator.locks){$('status').textContent='このブラウザでは安全な1人プレイ保存を利用できません。';return;}
+ const acquired=await new Promise((resolve,reject)=>{navigator.locks.request('night-arcade.estates.solo.writer',{mode:'exclusive',ifAvailable:true},lock=>{if(!lock){resolve(false);return;}soloLease=true;resolve(true);return new Promise(()=>{});}).catch(reject);});
+ if(!acquired){$('status').textContent='別のタブで1人プレイを開いています。そのタブを閉じてから再度お試しください。';return;}}
+ const result=readSoloSave(localStorage);if(!result.ok||result.value)soloChoices(result);else startSolo(null);
+ }catch{$('status').textContent='保存データを読み込めませんでした。元のデータは変更していません。';}finally{soloOpening=false;}
+};
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);inspectionPinned=true;render();};
 $('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
 $('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'世界遺産トラベル',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
@@ -31,7 +63,7 @@ function coordinates(i){if(i<=10)return[11-i,11];if(i<=20)return[1,21-i];if(i<=3
 function render(){
  $('status').textContent=net.status;const joined=net.members.some(m=>m.id===net.id);$('entry').hidden=joined;if(!joined&&net.status!=='通信を接続中…')$('solo').disabled=$('create').disabled=$('join').disabled=false;$('lobby').hidden=!joined||!!net.state;$('game').hidden=!net.state;$('leave').hidden=!joined;
  $('room').textContent=net.room;$('share-url').value=location.origin+location.pathname+'?room='+net.room;$('members').replaceChildren();net.members.forEach(m=>{const li=document.createElement('li');li.textContent=m.name+(m.id===net.id?'（あなた）':'')+(m.connected?'':'（退出）');$('members').append(li);});$('start').hidden=!net.host;$('start').disabled=net.members.length<2;
- if(!net.state){effects.reset();return;}effects.observe(net.state);const s=effects.displayState||net.state;const me=s.players.find(p=>p.id===net.id),current=s.players[s.turn],mine=current.id===net.id;
+ if(!net.state){effects.reset();return;}effects.observe(net.state);persistSolo();const s=effects.displayState||net.state;const me=s.players.find(p=>p.id===net.id),current=s.players[s.turn],mine=current.id===net.id;
  const focus=current.id+':'+current.position,moved=focus!==lastPosition;if(moved){lastPosition=focus;if(!inspectionPinned)selected=current.position;} $('players').replaceChildren();s.players.forEach((p,i)=>{const box=document.createElement('div');box.dataset.playerId=p.id;box.className='player'+(i===s.turn?' active':'');box.style.setProperty('--player',colors[i]);const name=document.createElement('span');name.textContent=p.name+(p.id===net.id?' • あなた':'')+(p.bankrupt?' • 破産':'');const money=document.createElement('strong');money.textContent=eur(p.money);const detail=document.createElement('small');detail.textContent='所有 '+Object.values(s.properties).filter(v=>v.owner===p.id).length+'か所'+(p.jail?' / 拘留中':'');box.append(name,money,detail);$('players').append(box);});
  $('board').replaceChildren();BOARD.forEach((tile,i)=>{const b=document.createElement('button');b.dataset.tileId=i;b.dataset.type=tile.type;b.className='tile'+((i>10&&i<20)||(i>30&&i<40)?' side-tile':'')+(i===selected?' selected':'');const [col,row]=coordinates(i);b.style.gridColumn=col;b.style.gridRow=row;b.style.setProperty('--group',tile.color||'#cdd8bf');b.setAttribute('aria-label',i+': '+tile.name);const name=document.createElement('span');name.className='tile-name';name.textContent=tile.name;const tokens=document.createElement('div');tokens.className='tokens';s.players.forEach((p,j)=>{if(p.position===i&&!p.bankrupt){const dot=document.createElement('span');dot.className='token';dot.dataset.playerId=p.id;dot.style.setProperty('--player',colors[j]);dot.title=p.name;tokens.append(dot);}});b.append(name,tokens);const houses=tile.type==='property'?s.properties[i]?.houses||0:0;if(houses){const marker=document.createElement('span');marker.className='building-marker'+(houses===5?' hotel':'');marker.setAttribute('aria-hidden','true');marker.textContent=houses===5?'H':'⌂'+houses;b.append(marker);b.classList.add('built');b.dataset.buildings=houses;b.setAttribute('aria-label',i+': '+tile.name+' · '+(houses===5?'ホテル1軒':'家'+houses+'軒'));}const owner=s.players.findIndex(p=>p.id===s.properties[i]?.owner);if(owner>=0){b.classList.add('owned');b.style.setProperty('--owner',colors[owner]);}b.title=b.getAttribute('aria-label');b.onclick=()=>inspectSpace(i,`[data-tile-id="${i}"]`);$('board').append(b);});
  $('turn-label').textContent=current.name+'の番';const phases={roll:'サイコロを振ろう',buy:'この場所を購入しますか？',auction:'競売中',end:'次の旅人へ',debt:'支払い資金が不足しています',trade:'物件の交渉中',over:'旅の終わり'};const waitingPhases={roll:'相手のサイコロを待っています',buy:'相手の購入判断を待っています',end:'相手のターン終了を待っています',debt:'相手の支払い対応を待っています'};$('phase').textContent=(!mine&&waitingPhases[s.phase])||phases[s.phase]||s.phase;$('current').textContent=s.phase==='over'?'勝者: '+(s.players.find(p=>p.id===s.winner)?.name||'引き分け'):current.name+' · '+BOARD[current.position].name+(mine?'（あなたの番）':'');
@@ -65,7 +97,7 @@ function render(){
   const control=button(label,()=>dispatch({type,property:selected}),pa,!preview.ok);
   if(!preview.ok)control.title=preview.error;
  }
- if(net.halted){$('phase').textContent='通信切断により対戦中断';document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);}
+ if(net.halted){$('phase').textContent=net.solo?'保存できないため対戦中断':'通信切断により対戦中断';document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);}
  $('last-card-result').hidden=!s.lastCard;if(s.lastCard)$('last-card-result').querySelector('p').textContent=(s.lastCard.type==='chest'?'手紙：':'チャンス：')+s.lastCard.title+' — '+s.lastCard.text;if(effects.busy){document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);$('phase').textContent=effects.holding?'カード・お会計を確認してください':'出目と到着先を確認中…';}
  trades.update(s,net.id,effects.busy||net.halted);
  $('log').replaceChildren();s.log.slice(-12).reverse().forEach(item=>{const li=document.createElement('li');li.textContent=item;$('log').append(li);});
