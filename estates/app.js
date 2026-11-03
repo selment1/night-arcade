@@ -1,10 +1,11 @@
+import {InfoCenter} from './about.js?v=review-1';
 import {TradePanel} from './trade-view.js?v=trade-1';
 import {BOARD,act} from './engine.js?v=trade-1';
 import {EstateNetwork} from './network.js?v=trade-1';
-import {EstateSolo} from './solo.js?v=trade-1';
+import {EstateSolo} from './solo.js?v=review-1';
 import {JourneyEffects} from './effects.js?v=personal-1';
 import {JourneyAudio} from './audio.js?v=immersive-1';
-import {renderDestination} from './photo-view.js?v=deeds-1';
+import {renderDestination} from './photo-view.js?v=review-1';
 import {DeedCollection,rentLabel} from './deeds.js?v=deeds-1';
 const $=id=>document.getElementById(id), colors=['#df765e','#5488c4','#aa77ba','#c79e33'], eur=n=>'€'+Number(n).toLocaleString('ja-JP');
 let selected=0,lastPosition='',auctionControls=null,inspectionPinned=false;
@@ -17,13 +18,14 @@ function dispatch(action){
  if(action.type==='roll'){if(!effects.startRoll())return;if(!effects.short)document.querySelector('.board-section').scrollIntoView({block:'center',behavior:'instant'});document.querySelectorAll('#actions button').forEach(b=>b.disabled=true);clearTimeout(pendingRollTimer);pendingRollTimer=setTimeout(()=>{effects.cancelPending();render();},6000);}
  net.action(action);
 }
-let net=new EstateNetwork(render);window.estateNetwork=net;
+let net=new EstateNetwork(render);window.estateNetwork=net;const info=new InfoCenter(()=>net,()=>{if(net.solo)net.schedule();});
+document.addEventListener('visibilitychange',()=>{if(net.solo){if(document.hidden)clearTimeout(net.timer);else net.schedule();}});
 const param=new URLSearchParams(location.search).get('room');if(param)$('code').value=param;
 function button(label,fn,parent,disabled=false){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-label',label);b.disabled=disabled;b.onclick=fn;parent.append(b);return b;}
 async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
-$('solo').onclick=()=>{effects.reset();net=new EstateSolo(render,$('nickname').value,Number($('cpu-count').value));window.estateNetwork=net;net.presentationDelay=()=>Math.max(0,effects.busyUntil-Date.now());net.presentationBlocked=()=>effects.busy;lastPosition='';inspectionPinned=false;net.emit();};
+$('solo').onclick=()=>{effects.reset();net=new EstateSolo(render,$('nickname').value,Number($('cpu-count').value));window.estateNetwork=net;net.presentationDelay=()=>Math.max(0,effects.busyUntil-Date.now());net.presentationBlocked=()=>effects.busy||info.exitDialog.open;lastPosition='';inspectionPinned=false;net.emit();};
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);inspectionPinned=true;render();};
-$('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>net.leave();
+$('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
 $('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'世界遺産トラベル',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
 function coordinates(i){if(i<=10)return[11-i,11];if(i<=20)return[1,21-i];if(i<=30)return[i-19,1];return[11,i-29];}
 function render(){

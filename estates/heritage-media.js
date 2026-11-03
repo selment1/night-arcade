@@ -13,7 +13,7 @@ export const HERITAGE_MEDIA = Object.freeze({
     "changes": "縮小・JPEG圧縮。表示枠に合わせてトリミングされる場合があります。"
   },
   "3": {
-    "credit": "A.Savin",
+    "credit": "A.Savin, Wikipedia",
     "license": "FAL",
     "licenseUrl": "http://artlibre.org/licence/lal/en",
     "source": "https://commons.wikimedia.org/wiki/File:SL_Anuradhapura_asv2020-01_img11_Ruwanwelisaya_Stupa.jpg",
