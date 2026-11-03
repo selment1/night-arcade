@@ -42,7 +42,26 @@ try{
   await page.getByRole('button',{name:'見送る → 競売',exact:true}).click();
   assert.equal(await page.locator('.bid-input').inputValue(),'10','new auction resets draft even on the same property');
   assert.equal(await page.evaluate(()=>originalBid===document.querySelector('.bid-input')),false);
+  // Own-turn asset controls must respect auction/debt phase restrictions.
+  // Stop CPU scheduling so transitions below are deterministic fixtures.
+  await page.evaluate(()=>{const n=estateNetwork;clearTimeout(n.timer);n.schedule=()=>{};n.state.properties[1].owner=n.id;n.emit();});
+  await page.locator('#tile-select').selectOption('1');
+  const assetDisabled=()=>page.locator('#property-actions button').evaluateAll(nodes=>nodes.map(n=>n.disabled));
+  assert.deepEqual(await assetDisabled(),[true,true,true,true],'auction blocks all asset actions even on own turn');
+  await page.evaluate(()=>{const n=estateNetwork;n.state.phase='debt';n.state.auction=null;n.state.pending={amount:2000,creditor:null};n.emit();});
+  assert.deepEqual(await assetDisabled(),[true,false,false,true],'debt permits liquidation but not spending');
+  const revisionBefore=await page.evaluate(()=>estateNetwork.state.revision);
+  await page.getByRole('button',{name:'抵当に入れる',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>({mortgaged:estateNetwork.state.properties[1].mortgaged,phase:estateNetwork.state.phase,revision:estateNetwork.state.revision})),{mortgaged:true,phase:'debt',revision:revisionBefore+1},'liquidation remains usable during debt');
+  await page.evaluate(()=>{const n=estateNetwork;n.state.phase='end';n.state.pending=null;n.emit();});
+  assert.deepEqual(await assetDisabled(),[false,false,false,false],'ordinary own turn restores phase eligibility');
+  await page.evaluate(()=>{const n=estateNetwork;n.state.turn=1;n.emit();});
+  await page.locator('#tile-select').selectOption('1');
+  assert.deepEqual(await assetDisabled(),[true,true,true,true],'another player turn blocks owned asset actions');
+  await page.evaluate(()=>{const n=estateNetwork;n.state.turn=0;n.halted=true;n.emit();});
+  await page.locator('#tile-select').selectOption('1');
+  assert.deepEqual(await assetDisabled(),[true,true,true,true],'disconnection blocks asset actions');
   assert.deepEqual(errors,[]);await page.close();
  }
- console.log('PASS auction UI: 320/390px, actual CPU updates preserve input node/focus/draft, pristine defaults and minimum update, failed bid retains draft, highest bidder waits, outbid player re-enabled, withdrawal explained, new auction resets.');
+ console.log('PASS auction UI: 320/390px, actual CPU updates preserve input node/focus/draft, pristine defaults and minimum update, failed bid retains draft, highest bidder waits, outbid player re-enabled, withdrawal explained, new auction resets; asset controls enforce auction/debt/other-turn/disconnection restrictions and debt mortgage still executes.');
 }finally{await browser?.close();server?.kill();}
