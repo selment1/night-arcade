@@ -1,1 +1,1 @@
-{"name":"night-arcade","version":"1.0.0","private":true,"type":"module","scripts":{"start":"node server.mjs","test":"node scripts/verify-browser.mjs"},"devDependencies":{"@playwright/test":"^1.64.1"}}
+{"name":"night-arcade","version":"1.0.0","private":true,"type":"module","scripts":{"start":"node server.mjs","test":"node scripts/verify-browser.mjs && node scripts/verify-pet-focus.mjs"},"devDependencies":{"@playwright/test":"^1.64.1"}}
