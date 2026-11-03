@@ -8,14 +8,15 @@ for(const game of ['orbit','garden']){
  await page.goto(`${base}/games/${game}.html`);
  assert.equal(await page.locator('#start').textContent(),'プレイする');
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- if(game==='orbit'){
+ {
   for(const viewport of [{width:844,height:390},{width:568,height:320}]){
    await page.setViewportSize(viewport);
    assert(await page.locator('#start').evaluate(el=>{const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();return b.top>=v.top&&b.bottom<=v.bottom}), 'ready button fits landscape overlay');
+   assert(await page.locator('#description').evaluate(el=>{const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();return b.top>=v.top&&b.bottom<=v.bottom}), 'ready instructions fit landscape overlay');
   }
   await page.locator('#start').tap();
   await page.setViewportSize({width:375,height:812});
- }else await page.locator('#start').click();
+ }
  await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>mode),'playing');
  // A queued frame timestamp can precede resume's performance.now() in the same frame.
@@ -72,6 +73,33 @@ for(const game of ['orbit','garden']){
   await page.evaluate(()=>{elapsed=5;update(.01)});
   assert.equal(await page.locator('#score').textContent(),'50');
  }else{
+  // Keep the entire catching field and movement/pause buttons visible on rotation.
+  await page.evaluate(()=>{halt();elapsed=5;spawn=100;items=[{x:150,y:200,speed:140,hazard:false}]});
+  const gardenState=()=>page.evaluate(()=>({score,elapsed,basket,target,lives,spawn,items}));
+  for(const viewport of [{width:844,height:390},{width:568,height:320},{width:320,height:568}]){
+   const active=await gardenState();
+   await page.setViewportSize(viewport);
+   assert.equal(await page.evaluate(()=>mode),'playing');
+   assert.deepEqual(await gardenState(),active,'garden rotation retains active round and falling items');
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'garden rotation has no horizontal overflow');
+   await page.locator('.board').evaluate(el=>el.scrollIntoView({block:'start'}));
+   const board=await page.locator('.board').boundingBox(),controls=await page.locator('.controls').boundingBox();
+   assert(board.y>=-1&&controls.y+controls.height<=viewport.height,'garden entire board and controls fit viewport');
+   const canvasBox=await page.locator('#canvas').boundingBox();
+   await page.touchscreen.tap(canvasBox.x+canvasBox.width*.25,canvasBox.y+canvasBox.height*.5);
+   assert(Math.abs(await page.evaluate(()=>target)-160)<4,'garden scaled canvas maps touch to logical basket position');
+   await page.locator('#pause').tap();
+   const paused=await gardenState();
+   await page.setViewportSize({width:viewport.height,height:viewport.width});
+   assert.equal(await page.evaluate(()=>mode),'paused');
+   assert.deepEqual(await gardenState(),paused,'garden rotation retains paused round');
+   assert(await page.locator('#start').evaluate(el=>{const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();return b.top>=v.top&&b.bottom<=v.bottom&&b.left>=v.left&&b.right<=v.right}),'garden resume is not clipped after rotation');
+   await page.locator('#start').tap();await page.evaluate(()=>halt());
+   assert.equal(await page.evaluate(()=>mode),'playing');
+  }
+  await page.setViewportSize({width:375,height:812});
+  await page.evaluate(()=>{reset();resume();halt()});
+  console.log('garden: active/paused portrait-landscape rotation retains state and items; full board, controls and resume reachable PASS');
   await page.evaluate(()=>{items=[{x:basket,y:529,speed:0,hazard:false}];update(.01)});
   assert.equal(await page.locator('#score').textContent(),'10');
   // Each held input owns its direction until that particular input releases.
@@ -196,7 +224,7 @@ for(const game of ['orbit','garden']){
  else await page.evaluate(()=>{lives=1;items=[{x:basket,y:529,speed:0,hazard:true}];update(.001)});
  assert.equal(await page.evaluate(()=>mode),'over');
  assert.equal(await page.locator('#start').textContent(),'もう一度プレイ');
- if(game==='orbit'){
+ {
   await page.setViewportSize({width:568,height:320});
   assert(await page.locator('#start').evaluate(el=>{const b=el.getBoundingClientRect(),v=document.querySelector('#veil').getBoundingClientRect();return b.top>=v.top&&b.bottom<=v.bottom}), 'restart button fits landscape overlay');
  }
