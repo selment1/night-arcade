@@ -45,6 +45,22 @@ try{
   if(action==='undo'){await page.evaluate(()=>{window.blockReversiSave=false;});await page.locator('[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('night-reversi-v1')).matchId),recovered.game.matchId);}
   await ctx.close();
  }
+ // A durable match can finish while pet storage fails; reload must recover the reward.
+ {
+  const ctx=await browser.newContext();const page=await ctx.newPage();await page.goto(url);
+  await page.evaluate(()=>{const b=Array(64).fill(1);b[0]=0;b[1]=2;localStorage.setItem('night-reversi-v1',JSON.stringify({b,turn:1,last:2,ended:false,history:[],matchId:'reload-reward-recovery'}));});
+  await page.reload();
+  await page.evaluate(()=>{const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='night-pet-v1')throw Error('pet save interrupted');return original.call(this,k,v)};});
+  await page.locator('[data-index="0"]').click();
+  const saved=await page.evaluate(()=>localStorage.getItem('night-reversi-v1'));assert.equal(JSON.parse(saved).ended,true);assert.equal(await page.evaluate(()=>localStorage.getItem('night-pet-v1')),null);
+  for(let attempt=0;attempt<2;attempt++){
+   await page.reload();assert.match(await page.locator('#status').innerText(),/終局/);
+   const pet=await page.evaluate(()=>NightPet.snapshot());assert.equal(pet.coins,30,'reload recovers interrupted terminal reward');assert.equal(pet.xp,20);assert.equal(pet.gamesPlayed,1);assert.equal(pet.rewards['reversi:reload-reward-recovery'],true);
+   assert.equal(await page.evaluate(()=>localStorage.getItem('night-reversi-v1')),saved,'recovery preserves saved match');
+  }
+  await page.locator('#undo').click();await page.locator('[data-index="0"]').click();assert.equal(await page.evaluate(()=>NightPet.snapshot().gamesPlayed),1);await ctx.close();
+ }
+ console.log('PASS: interrupted terminal reward recovers on reload exactly once without changing saved match.');
  console.log('PASS: terminal legacy undo/restart preserve blocked state, cancel is inert, recovery settles exactly once.');
  console.log('PASS: Reversi legacy identity, reload/undo reward deduplication, blocked-save deferral and recovery, mobile layout.');
 }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));}
