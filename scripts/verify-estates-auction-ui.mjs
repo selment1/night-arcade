@@ -25,6 +25,18 @@ try{
   await page.locator('.bid-input').fill('1');await page.getByRole('button',{name:'€ 入札',exact:true}).click();
   assert.equal(await page.locator('.bid-input').inputValue(),'1','failed bid retains the draft');
   assert.equal(await page.evaluate(()=>originalBid===document.querySelector('.bid-input')),true);
+  await page.locator('.bid-input').fill('100');await page.getByRole('button',{name:'€ 入札',exact:true}).click();
+  await page.evaluate(()=>clearTimeout(estateNetwork.timer));
+  for(const selector of ['.bid-input','#actions button'])assert.equal(await page.locator(selector).evaluateAll(nodes=>nodes.every(n=>n.disabled)),true,'highest bidder must wait');
+  assert.match(await page.locator('#actions p').textContent(),/あなたが最高入札者.*待っています/);
+  assert.equal(await page.locator('.bid-input').inputValue(),'100','waiting preserves draft');
+  await page.evaluate(()=>{const n=estateNetwork;n.dispatch(n.state.players[1].id,{type:'bid',amount:110});clearTimeout(n.timer);});
+  for(const selector of ['.bid-input','#actions button'])assert.equal(await page.locator(selector).evaluateAll(nodes=>nodes.every(n=>!n.disabled)),true,'outbid player can act again');
+  assert.equal(await page.evaluate(()=>originalBid===document.querySelector('.bid-input')),true,'eligibility changes retain input node');
+  assert.equal(await page.locator('.bid-input').inputValue(),'100','outbid update preserves draft');
+  await page.getByRole('button',{name:'入札をやめる',exact:true}).click();await page.evaluate(()=>clearTimeout(estateNetwork.timer));
+  for(const selector of ['.bid-input','#actions button'])assert.equal(await page.locator(selector).evaluateAll(nodes=>nodes.every(n=>n.disabled)),true,'withdrawn player cannot act');
+  assert.match(await page.locator('#actions p').textContent(),/辞退しました.*待っています/);
   await page.evaluate(()=>{const n=estateNetwork;n.state.phase='buy';n.state.auction=null;n.state.pending={property:39};n.emit();});
   assert.equal(await page.locator('.bid-input').count(),0);
   await page.getByRole('button',{name:'見送る → 競売',exact:true}).click();
@@ -32,5 +44,5 @@ try{
   assert.equal(await page.evaluate(()=>originalBid===document.querySelector('.bid-input')),false);
   assert.deepEqual(errors,[]);await page.close();
  }
- console.log('PASS auction UI: 320/390px, actual CPU updates preserve input node/focus/draft, pristine defaults and minimum update, failed bid retains draft, new auction resets.');
+ console.log('PASS auction UI: 320/390px, actual CPU updates preserve input node/focus/draft, pristine defaults and minimum update, failed bid retains draft, highest bidder waits, outbid player re-enabled, withdrawal explained, new auction resets.');
 }finally{await browser?.close();server?.kill();}
