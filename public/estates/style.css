@@ -55,3 +55,10 @@ button.player small{font-size:11px}
 .set-effect{background:#edf1e7;border-left:3px solid #80995f;padding:10px;font-size:13px;line-height:1.7}
 .owner-sheet{padding:16px;max-height:88dvh;overflow:auto}
 .owner-sheet .owned-deed-list{display:grid;gap:10px}.owned-deed-list small{display:block;line-height:1.7;font-size:12px}
+
+.guide-launch{display:block;margin:0 0 18px;padding:12px;border:1px solid #cbd7d0;border-radius:12px;text-align:center;font-weight:700}
+.guide-topic{border:1px solid #d6ddd5;border-radius:12px;margin:12px 0;padding:0 14px;background:#fffdf7}
+.guide-topic>summary{padding:15px 0;min-height:48px;line-height:1.6}
+.guide-topic p{font-size:14px;line-height:1.85;overflow-wrap:anywhere}
+.guide-topic article{border-top:1px solid #d6ddd5;padding:8px 0}
+.guide-topic h4{margin-bottom:4px}.guide-topic h3{font-size:16px}
