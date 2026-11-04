@@ -1,0 +1,7 @@
+build/
+*.xcresult
+Heritage/Resources/Web/
+xcuserdata/
+__pycache__/
+
+device-build/
