@@ -1,4 +1,4 @@
-import {pricePanel,rentLabel} from './deeds.js?v=deeds-1';
+import {pricePanel,rentLabel} from './deeds.js?v=assets-2';
 import {HERITAGE_INFO} from './heritage-info.js?v=expansion-1';
 import {HERITAGE_MEDIA} from './heritage-media.js?v=rights-1';
 const root=document.getElementById('destination-photo');let currentId=null;
