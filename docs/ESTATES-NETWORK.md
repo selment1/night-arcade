@@ -23,3 +23,9 @@ Verified 2026-11-03 locally using two isolated Chrome contexts, default public P
 ### Invitation entry (2026-11-04)
 
 A valid `?room=<10 hex characters>` link opens a focused nickname + “この招待に参加” screen. The code is read from the URL; no room-number entry is shown. Creation/solo controls are hidden until the user follows “招待を使わずに遊ぶ”. Joining remains an explicit tap. Invalid invitation values fall back to manual entry with an error, and never silently create a room. The network regression follows the host-generated share URL without entering the code and verifies real WebRTC play/trading.
+
+### Safari connection investigation (2026-11-04)
+
+User reports iPhone Safari cannot join via invitation or code, with no visible feedback. Device-specific cause not confirmed. Playwright WebKit27.2 (not an actual iPhone) reproduces join timeout with Chrome or WebKit host: guest has host candidates only and ICE failed; Chrome host has host/srflx. A forced-relay probe against bundled PeerJS default TURN endpoints yielded no relay candidate and DNS701 failures. PeerJS officially discontinued free TURN in2023: https://github.com/orgs/peers/discussions/1172 . Do not equate same-machine Chrome success with phone/cellular support. The primary invitation change is published and Chrome-tested, but is NOT a fix for failed connectivity.
+
+A second feedback improvement mirrors connection status immediately below Join. `node scripts/diagnose-estates-webkit.mjs` (optional CHROME_HOST=1) prints states/candidate TYPES only, no room codes or addresses. A public OpenRelay static-auth probe also yielded no relay candidates; it was NOT installed as a production fallback. A working authorized TURN service or hosted relay, with forced-relay and phone verification, is still needed before claiming robust cross-network play. Current privacy and transport stay unchanged.
