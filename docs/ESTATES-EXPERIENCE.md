@@ -36,3 +36,9 @@ Permanent green house/count badges (1–4) and a contrasting red H for one hotel
 ## Card-based management (2026-11-04)
 
 Occasional actions no longer compete with the turn controls. Open an owned deed (or a board tile) to build, sell buildings, mortgage/redeem, or start a trade involving that property. The detail dialog closes before mutation so payment confirmations remain reachable. Trade terms live inside the hand collection; incoming-offer navigation opens both disclosure levels. Existing rule validation, saves and network protocol are unchanged. Native pinned bundles require a separate sync/build before this web UI change is included.
+
+## Mobile asset usability (2026-11-05)
+
+Resume choices are full-width separated rows: primary Continue, secondary New Game, quiet Back. Delete is under a separate storage-management disclosure; all save formats and actions remain unchanged. Player balance panels are accessible buttons opening that player's owned assets, house/hotel counts and mortgage count; cards open priced details and return focus to the player panel. Asset lists update from the presented snapshot, not unseen event outcomes. A personal receipt closes the inventory so confirmation is reachable.
+
+Utility and transport cards expose owner collection count and the full rate progression before the collapsed rent table. Transport includes rail/port/airport in one set. The existing engine counts all owned siblings, including mortgaged siblings; the mortgaged destination itself charges zero. Mortgaged spaces have patterned backgrounds and a text marker; owned cards have a dashed treatment and detail notices say no rent. Rules, save keys, network and native pinned bundle unchanged. Test: verify-estates-asset-usability.mjs at320/390, plus existing resume/deeds/network/board regression suites. Safari connectivity remains unresolved and is not fixed by these UI improvements.
