@@ -1,0 +1,12 @@
+{
+  "product": "世界遺産トラベル（仮題）",
+  "status": "not-cleared-for-store",
+  "items": [
+    {"id":"board-and-expression","status":"open","evidence":null,"required":"独自化した配置・意匠・説明と経済/勝利条件の実装確認、または対象用途の許諾。地名と通貨だけの変更は不可。"},
+    {"id":"brand-search","status":"open","evidence":null,"required":"配布国、正式タイトル、アイコンを確定し、登録商標・類似表示を調査。"},
+    {"id":"patent-scope","status":"open","evidence":"../PATENTS-AND-RELEASE.md","required":"古い特許の期限切れのみで全体をクリア扱いせず、確定実装・対象市場の後続権利を確認。"},
+    {"id":"media-distribution","status":"open","evidence":null,"required":"写真なし候補を採用するか、採用写真の著作権・施設条件・ネイティブ配布を一件ずつ確認。開発版は元写真を含む。"},
+    {"id":"third-party-code","status":"open","evidence":null,"required":"PeerJS MIT表示と実際の同梱物・依存物の照合。通信サービスの利用条件も確認。"},
+    {"id":"release-review","status":"open","evidence":null,"required":"確定した配布物に対する判断記録と必要な専門家/権利者の確認。チェック結果だけで法的保証を出さない。"}
+  ]
+}
