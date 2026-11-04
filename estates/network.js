@@ -1,20 +1,24 @@
 import {createGame,act} from './engine.js?v=trade-1';
 const TYPES=new Set(['roll','buy','decline','bid','pass','end','build','sell','mortgage','redeem','payJail','useCard','bankrupt','offerTrade','counterTrade','acceptTrade','rejectTrade','cancelTrade']);
+export const normalizeRoomCode=value=>String(value??'').normalize('NFKC').trim().toUpperCase();
+export const validRoomCode=value=>/^(?:[0-9]{4}|[A-F0-9]{10})$/.test(normalizeRoomCode(value));
 export class EstateNetwork {
  constructor(update){this.update=update;this.members=[];this.connections=new Map();this.lastSeen=new Map();this.state=null;this.id='';this.room='';this.host=false;this.status='未接続';this.closed=false;}
  emit(){this.update(this);}
  fail(message){this.status=message;this.emit();}
- async open(room,name){
+ async open(room,name,chosenCode=''){
   clearInterval(this.heartbeat);this.peer?.destroy();this.halted=false;
   this.name=(String(name).trim()||'旅人').slice(0,20);this.host=!room;this.closed=false;
-  this.room=room?String(room).toUpperCase().replace(/[^A-F0-9]/g,''):Array.from(crypto.getRandomValues(new Uint8Array(5)),n=>n.toString(16).padStart(2,'0')).join('').toUpperCase();
-  if(this.room.length!==10)throw new Error('ルームコードは10文字です');
+  const requested=normalizeRoomCode(this.host?chosenCode:room);
+  if(this.host&&requested&&!/^[0-9]{4}$/.test(requested))throw new Error('作成するルーム番号は4桁の数字にしてください。');
+  if(!this.host&&!validRoomCode(requested))throw new Error('4桁の数字、または以前の10文字のルームコードを入力してください。');
+  this.room=requested||String(crypto.getRandomValues(new Uint32Array(1))[0]%10000).padStart(4,'0');
   this.status='通信を接続中…';this.emit();
   this.peer=new Peer(this.host?'komore-estates-'+this.room:undefined,{debug:0});
   await new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>{this.peer.destroy();reject(new Error('接続がタイムアウトしました。通信環境を確認してください。'));},20000);
    this.peer.once('open',id=>{clearTimeout(timer);this.id=id;resolve();});
-   this.peer.once('error',e=>{clearTimeout(timer);reject(new Error('通信サーバーに接続できません: '+e.type));});
+   this.peer.once('error',e=>{clearTimeout(timer);reject(new Error(e.type==='unavailable-id'?'このルーム番号は使用中です。別の4桁を指定してください。':'通信サーバーに接続できません: '+e.type));});
   });
   window.addEventListener('pagehide',()=>this.peer.destroy(),{once:true});
   this.heartbeat=setInterval(()=>{if(this.closed)return;if(this.host){for(const [id,c] of this.connections){if(Date.now()-(this.lastSeen.get(id)||0)>18000)c.close();else if(c.open)c.send({type:'ping'});}}else if(this.connection?.open&&this.lastPing&&Date.now()-this.lastPing>22000){this.halted=true;this.connection.close();}},3000);

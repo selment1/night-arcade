@@ -3,7 +3,7 @@ import {SOLO_SAVE_KEY,readSoloSave,createSoloSave,writeSoloSave} from './solo-sa
 import {InfoCenter} from './about.js?v=resume-1';
 import {TradePanel} from './trade-view.js?v=trade-1';
 import {BOARD,act} from './engine.js?v=trade-1';
-import {EstateNetwork} from './network.js?v=trade-1';
+import {EstateNetwork,normalizeRoomCode,validRoomCode} from './network.js?v=rooms-2';
 import {EstateSolo} from './solo.js?v=review-1';
 import {JourneyEffects} from './effects.js?v=resume-1';
 import {JourneyAudio} from './audio.js?v=immersive-1';
@@ -23,10 +23,10 @@ function dispatch(action){
 let net=new EstateNetwork(render);window.estateNetwork=net;const info=new InfoCenter(()=>net,()=>{if(net.solo)net.schedule();});
 document.addEventListener('visibilitychange',()=>{if(net.solo){if(document.hidden)clearTimeout(net.timer);else net.schedule();}});
 const param=new URLSearchParams(location.search).get('room');
-const invitedRoom=param?.trim().toUpperCase();
-if(invitedRoom&&/^[A-F0-9]{10}$/.test(invitedRoom)){
+const invitedRoom=normalizeRoomCode(param);
+if(invitedRoom&&validRoomCode(invitedRoom)){
  $('code').value=invitedRoom;$('code').closest('label').hidden=true;
- for(const n of $('entry').querySelectorAll('.cpu-choice,#solo,#create,.divider,.note'))n.hidden=true;
+ for(const n of $('entry').querySelectorAll('.cpu-choice,.create-code-label,#solo,#create,.divider,.note'))n.hidden=true;
  $('entry').querySelector('.entry-title').textContent='友だちの旅に参加';
  $('join').textContent='この招待に参加';$('join').classList.remove('secondary');
  const hint=document.createElement('p');hint.className='note';hint.textContent='ルーム番号の入力は不要です。ニックネームを確認して参加してください。';$('join').before(hint);
@@ -35,7 +35,7 @@ if(invitedRoom&&/^[A-F0-9]{10}$/.test(invitedRoom)){
 }else if(param!==null){net.status='招待リンクが正しくありません。友だちに送り直してもらうか、ルームコードを入力してください。';}
 const entryStatus=document.createElement('p');entryStatus.id='entry-connection-status';entryStatus.className='note';entryStatus.setAttribute('role','status');entryStatus.setAttribute('aria-live','polite');$('join').after(entryStatus);
 function button(label,fn,parent,disabled=false){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-label',label);b.disabled=disabled;b.onclick=fn;parent.append(b);return b;}
-async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
+async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value,$('create-code').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
 let soloLease=false,soloOpening=false,soloRecord=null,soloStarting=false,soloSaveFailed=false;
 function persistSolo(){
  if(!net.solo||!soloLease||soloStarting||soloSaveFailed||!soloRecord||!effects.acknowledgedState)return;
@@ -81,7 +81,7 @@ $('solo').onclick=async()=>{
  }catch{showSoloEntryError('保存データを読み込めませんでした。元のデータは変更していません。');}finally{soloOpening=false;}
 };
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);inspectionPinned=true;render();};
-$('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!/^[A-Fa-f0-9]{10}$/.test($('code').value.trim())){net.fail('10文字のルームコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
+$('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!validRoomCode($('code').value)){net.fail('4桁の数字、または以前の10文字のコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
 $('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'世界遺産トラベル',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
 function coordinates(i){if(i<=10)return[11-i,11];if(i<=20)return[1,21-i];if(i<=30)return[i-19,1];return[11,i-29];}
 function render(){
