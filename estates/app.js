@@ -88,8 +88,9 @@ function render(){
   // Keep the actual input mounted: CPU/peer updates must not dismiss a mobile keyboard.
   if(!auctionControls){
    const info=document.createElement('p'),amount=document.createElement('input');amount.type='number';amount.step='1';amount.className='bid-input';amount.setAttribute('aria-label','入札額（ユーロ）');actions.append(info,amount);
-   const controls={property:a.property,info,amount,dirty:false};amount.oninput=()=>{controls.dirty=true;};
-   controls.bid=button('€ 入札',()=>dispatch({type:'bid',amount:Number(amount.value)}),actions);controls.pass=send('入札をやめる','pass');auctionControls=controls;
+   const error=document.createElement('div');error.id='bid-error';error.setAttribute('role','status');error.style.flexBasis='100%';amount.setAttribute('aria-describedby','bid-error');actions.append(error);
+   const controls={property:a.property,info,amount,error,dirty:false};amount.oninput=()=>{controls.dirty=true;error.textContent='';};
+   controls.bid=button('€ 入札',()=>{const action={type:'bid',amount:Number(amount.value)},preview=act(net.state,net.id,action,()=>0);if(!preview.ok){error.textContent=preview.error;return;}error.textContent='';dispatch(action);},actions);controls.pass=send('入札をやめる','pass');auctionControls=controls;
   }
   const controls=auctionControls;controls.info.textContent=BOARD[a.property].name+' / 最高入札 '+eur(a.highestBid);controls.amount.min=String(a.highestBid+1);if(!controls.dirty)controls.amount.value=String(a.highestBid+10);
   const active=a.active.includes(net.id),leading=a.highestBidder===net.id;
