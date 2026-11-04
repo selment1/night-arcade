@@ -1,3 +1,4 @@
+import {tradable} from './trading.js?v=trade-1';
 import {SOLO_SAVE_KEY,readSoloSave,createSoloSave,writeSoloSave} from './solo-save.js?v=resume-1';
 import {InfoCenter} from './about.js?v=resume-1';
 import {TradePanel} from './trade-view.js?v=trade-1';
@@ -99,16 +100,21 @@ function render(){
  }
  if(s.phase==='trade'&&s.trade?.to===net.id){
   const notice=document.createElement('p');notice.textContent='あなたに交換の提案が届きました。内容を確認して返答してください。';notice.setAttribute('role','status');actions.append(notice);
-  button('届いた交換の提案を見る',()=>{trades.root.open=true;trades.summary.focus({preventScroll:true});trades.root.scrollIntoView({block:'start',behavior:'instant'});},actions);
+  button('届いた交換の提案を見る',()=>{$('my-deeds').open=true;trades.root.open=true;trades.summary.focus({preventScroll:true});trades.root.scrollIntoView({block:'start',behavior:'instant'});},actions);
  }
  if(s.phase==='end')send('ターンを終了','end',!mine);
- if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。所有地を選び、売却や抵当を使えます。';actions.append(p);const bankruptcy=eligibleSend('破産して棄権','bankrupt');if(mine&&bankruptcy.disabled)p.textContent+=' '+bankruptcy.title+'。';}
+ if(s.phase==='debt'){const p=document.createElement('p');p.textContent='必要な支払い: '+eur(s.pending.amount)+'。手持ちのカードから所有地を開き、売却や抵当を使えます。';actions.append(p);const bankruptcy=eligibleSend('破産して棄権','bankrupt');if(mine&&bankruptcy.disabled)p.textContent+=' '+bankruptcy.title+'。';}
  $('tile-select').replaceChildren();for(const item of BOARD){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;option.selected=item.id===selected;$('tile-select').append(option);}
  const tile=BOARD[selected],prop=s.properties[selected],owner=s.players.find(p=>p.id===prop?.owner);renderDestination(tile,prop,owner,s);selectionName.textContent=tile.name+(tile.price?' · 定価 '+eur(tile.price):'')+(prop?.houses?' · '+(prop.houses===5?'ホテル1軒':'家'+prop.houses+'軒'):'');portfolio.update(s,net.id);$('detail').textContent=tile.name+(tile.price?' · 購入 '+eur(tile.price):'')+'\n'+(owner?'所有者: '+owner.name+' / 建物 '+prop.houses+(prop.mortgaged?' / 抵当中':''):tile.price?'未所有':'購入できないマス')+(tile.rent?'\n利用料 '+rentLabel(tile,s):'');let collection=$('collection-progress');if(!collection){collection=document.createElement('div');collection.id='collection-progress';collection.className='collection-progress';$('detail').after(collection);}collection.replaceChildren();if(tile.group){const group=BOARD.filter(t=>t.group===tile.group),owned=group.filter(t=>s.properties[t.id]?.owner===net.id).length;const label=document.createElement('p');label.textContent=`この色のコレクション：${owned} / ${group.length}か所`+(owned===group.length?' — 全部そろいました！':' — あと'+(group.length-owned)+'か所');const progress=document.createElement('progress');progress.max=group.length;progress.value=owned;progress.setAttribute('aria-label','この色の所有地');collection.style.setProperty('--collection-color',tile.color);const hint=document.createElement('p');hint.textContent='同じ色をそろえると更地家賃が2倍。抵当を解除して均等に建築できます。建築費 '+eur(tile.houseCost)+' / 軒。';collection.append(label,progress,hint);}const pa=$('property-actions');pa.replaceChildren();if(prop?.owner===net.id&&!me.bankrupt&&s.phase!=='over')for(const [type,label] of [['build','建築'],['sell','建物を売る'],['mortgage','抵当に入れる'],['redeem','抵当を解除']]){
   // The reducer is immutable: preview legality without spending money or real RNG.
   const preview=act(s,net.id,{type,property:selected},()=>0);
-  const control=button(label,()=>dispatch({type,property:selected}),pa,!preview.ok);
+  const control=button(label,()=>{portfolio.sheet.close();dispatch({type,property:selected});},pa,!preview.ok);
   if(!preview.ok)control.title=preview.error;
+ }
+ if(prop?.owner&&!me.bankrupt&&s.phase!=='over'){
+  const canTrade=mine&&['roll','end'].includes(s.phase)&&!s.trade&&tradable(s,selected,prop.owner);
+  const trade=button('この物件をトレード',()=>{portfolio.sheet.close();setTimeout(()=>trades.openProperty(selected),0);},pa,!canTrade);
+  if(!canTrade)trade.title='自分の手番の開始時・終了前に、抵当のない物件を交渉できます。';
  }
  if(net.halted){$('phase').textContent=net.solo?'保存できないため対戦中断':'通信切断により対戦中断';document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);}
  $('last-card-result').hidden=!s.lastCard;if(s.lastCard)$('last-card-result').querySelector('p').textContent=(s.lastCard.type==='chest'?'手紙：':'チャンス：')+s.lastCard.title+' — '+s.lastCard.text;if(effects.busy){document.querySelectorAll('#actions button,#property-actions button').forEach(b=>b.disabled=true);$('phase').textContent=effects.holding?'カード・お会計を確認してください':'出目と到着先を確認中…';}

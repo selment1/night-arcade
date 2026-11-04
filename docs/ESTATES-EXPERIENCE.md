@@ -32,3 +32,7 @@ Cards now wait for a tap to reveal, then a second tap to apply the presentation.
 Permanent green house/count badges (1–4) and a contrasting red H for one hotel follow authoritative property state. Sales update or remove them; tile accessible names and the selected full-name line include the building count. The square screen-fit perimeter is unchanged.
 
 `verify-estates-confirmation.mjs` tests actual card draws, cash/audio spoiler prevention, manual receipt persistence, CPU3 pause/resume, actual hotel building and sales down to zero, and mobile board markers. Older gameplay tests explicitly acknowledge receipts using a test-only helper; the confirmation test does not use it.
+
+## Card-based management (2026-11-04)
+
+Occasional actions no longer compete with the turn controls. Open an owned deed (or a board tile) to build, sell buildings, mortgage/redeem, or start a trade involving that property. The detail dialog closes before mutation so payment confirmations remain reachable. Trade terms live inside the hand collection; incoming-offer navigation opens both disclosure levels. Existing rule validation, saves and network protocol are unchanged. Native pinned bundles require a separate sync/build before this web UI change is included.
