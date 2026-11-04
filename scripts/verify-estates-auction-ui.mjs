@@ -27,7 +27,14 @@ try{
   await page.locator('.bid-input').fill('1');await page.getByRole('button',{name:'€ 入札',exact:true}).click();
   assert.equal(await page.locator('.bid-input').inputValue(),'1','failed bid retains the draft');
   assert.equal(await page.evaluate(()=>originalBid===document.querySelector('.bid-input')),true);
-  await page.locator('.bid-input').fill('100');await page.getByRole('button',{name:'€ 入札',exact:true}).click();
+  assert(await page.locator('#bid-error').textContent(),'invalid minimum has local feedback');
+  const revision=await page.evaluate(()=>estateNetwork.state.revision);
+  await page.locator('.bid-input').fill('2000');await page.getByRole('button',{name:'€ 入札',exact:true}).click();
+  assert(await page.locator('#bid-error').textContent(),'unaffordable bid has local feedback');
+  assert.equal(await page.evaluate(()=>estateNetwork.state.revision),revision,'invalid bid cannot mutate game');
+  assert.equal(await page.locator('.bid-input').inputValue(),'2000');
+  assert(await page.locator('#bid-error').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.right<=innerWidth}),'error stays visible beside mobile bid controls');
+  await page.locator('.bid-input').fill('100');assert.equal(await page.locator('#bid-error').textContent(),'','editing clears stale error');await page.getByRole('button',{name:'€ 入札',exact:true}).click();
   await page.evaluate(()=>clearTimeout(estateNetwork.timer));
   for(const selector of ['.bid-input','#actions button'])assert.equal(await page.locator(selector).evaluateAll(nodes=>nodes.every(n=>n.disabled)),true,'highest bidder must wait');
   assert.match(await page.locator('#actions p').textContent(),/あなたが最高入札者.*待っています/);
