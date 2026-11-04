@@ -3,7 +3,15 @@ import {tradable} from './trading.js?v=trade-1';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
 const euro=n=>'€'+n.toLocaleString('ja-JP');
 export class TradePanel{
- constructor(send){this.send=send;this.root=el('details',undefined,'card trade-panel');this.root.id='trade-panel';this.summary=el('summary','物件の交渉');this.body=el('div',undefined,'trade-body');this.root.append(this.summary,this.body);document.getElementById('my-deeds').after(this.root);}
+ constructor(send){this.send=send;this.root=el('details',undefined,'card trade-panel');this.root.id='trade-panel';this.summary=el('summary','物件の交渉');this.body=el('div',undefined,'trade-body');this.root.append(this.summary,this.body);document.getElementById('my-deeds').append(this.root);}
+ openProperty(property){
+ const owner=this.state.properties[property]?.owner;
+ if(!this.state.trade&&this.body.querySelector('form')){
+  this.body.querySelector('form').remove();
+  this.form(owner===this.id?{give:[property],cashValue:'0'}:{to:owner,take:[property],cashValue:'0'});
+ }
+ document.getElementById('my-deeds').open=true;this.root.open=true;this.summary.focus({preventScroll:true});this.root.scrollIntoView({block:'center',behavior:'instant'});
+ }
  button(text,fn,parent){const b=el('button',text);b.type='button';b.onclick=()=>{if(!this.blocked)fn()};parent.append(b);return b;}
  update(state,id,blocked){
  // Only carry an unsent proposal within the same player's current decision.
@@ -13,7 +21,7 @@ export class TradePanel{
  this.state=state;this.id=id;this.blocked=blocked;const key=JSON.stringify([state.trade,state.phase,state.turn,state.properties,state.players.map(p=>[p.id,p.money,p.bankrupt]),id]);
  if(key!==this.key){this.key=key;this.body.replaceChildren();const t=state.trade;this.summary.textContent=t?'物件の交渉 · '+(t.to===id?'提案が届いています':t.from===id?'返答待ち':'他の旅人が交渉中'):'物件の交渉';
  this.body.append(el('p','物件と差額€を提示し、双方が合意したときだけ交換します。抵当中の物件、同じ色に建物がある物件は対象外です。','note'));
- if(t){this.root.open=true;const name=id=>state.players.find(p=>p.id===id)?.name||'';for(const [owner,ids,cash] of [[t.from,t.give,t.giveCash],[t.to,t.take,t.takeCash]]){const section=el('div',undefined,'trade-terms');section.append(el('strong',name(owner)+' が渡すもの'),el('p',ids.length?ids.map(i=>BOARD[i].name).join(' / '):'物件なし'),el('b',euro(cash)));this.body.append(section);}
+ if(t){document.getElementById('my-deeds').open=true;this.root.open=true;const name=id=>state.players.find(p=>p.id===id)?.name||'';for(const [owner,ids,cash] of [[t.from,t.give,t.giveCash],[t.to,t.take,t.takeCash]]){const section=el('div',undefined,'trade-terms');section.append(el('strong',name(owner)+' が渡すもの'),el('p',ids.length?ids.map(i=>BOARD[i].name).join(' / '):'物件なし'),el('b',euro(cash)));this.body.append(section);}
  const controls=el('div',undefined,'trade-controls');this.body.append(controls);
  if(t.to===id){this.button('この条件で承諾',()=>this.send({type:'acceptTrade',tradeId:t.id}),controls);this.button('見送る',()=>this.send({type:'rejectTrade',tradeId:t.id}),controls);this.counterButton=this.button('条件を変えて再提案',()=>{controls.remove();this.form({to:t.from,give:t.take,take:t.give,giveCash:t.takeCash,takeCash:t.giveCash},t.id)},controls);}
  else if(t.from===id)this.button('提案を取り下げる',()=>this.send({type:'cancelTrade',tradeId:t.id}),controls);
