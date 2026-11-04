@@ -1,49 +1,36 @@
-import {createGame,act} from './engine.js?v=trade-1';
-const TYPES=new Set(['roll','buy','decline','bid','pass','end','build','sell','mortgage','redeem','payJail','useCard','bankrupt','offerTrade','counterTrade','acceptTrade','rejectTrade','cancelTrade']);
+import {RELAY_URL} from './relay-config.js?v=relay-1';
 export const normalizeRoomCode=value=>String(value??'').normalize('NFKC').trim().toUpperCase();
-export const validRoomCode=value=>/^(?:[0-9]{4}|[A-F0-9]{10})$/.test(normalizeRoomCode(value));
+export const validRoomCode=value=>/^\d{4}$/.test(normalizeRoomCode(value));
 export class EstateNetwork {
- constructor(update){this.update=update;this.members=[];this.connections=new Map();this.lastSeen=new Map();this.state=null;this.id='';this.room='';this.host=false;this.status='未接続';this.closed=false;}
+ constructor(update){this.update=update;this.members=[];this.state=null;this.id='';this.room='';this.host=false;this.status='未接続';this.closed=false;this.halted=false;this.busy=false;}
  emit(){this.update(this);}
  fail(message){this.status=message;this.emit();}
+ async request(data){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+  try{
+   const response=await fetch(RELAY_URL+'/api',{method:'POST',mode:'cors',cache:'no-store',headers:{'Content-Type':'application/json',...(this.token?{Authorization:'Bearer '+this.token}:{})},body:JSON.stringify({...data,room:data.room??this.room}),signal:controller.signal});
+   const result=await response.json();if(!response.ok)throw new Error(result.error||'通信に失敗しました');return result;
+  }catch(e){if(e instanceof TypeError||e.name==='AbortError')throw new Error('通信サーバーに届きません。回線を確認してお待ちください。テストサーバーが停止中の場合は再開が必要です。');throw e;}finally{clearTimeout(timer);}
+ }
+ apply(d){if(this.closed)return;if(this.state&&(!d.state||d.state.revision<this.state.revision))return;const signature=JSON.stringify([d.members,d.state?.revision,d.halted,d.status]);if(signature===this.signature&&this.status===d.status)return;this.signature=signature;this.members=d.members;this.state=d.state;this.room=d.room;this.halted=d.halted;this.status=d.status;this.emit();}
  async open(room,name,chosenCode=''){
-  clearInterval(this.heartbeat);this.peer?.destroy();this.halted=false;
-  this.name=(String(name).trim()||'旅人').slice(0,20);this.host=!room;this.closed=false;
+  clearTimeout(this.timer);this.closed=false;this.state=null;this.signature='';this.token='';this.host=!room;
   const requested=normalizeRoomCode(this.host?chosenCode:room);
-  if(this.host&&requested&&!/^[0-9]{4}$/.test(requested))throw new Error('作成するルーム番号は4桁の数字にしてください。');
-  if(!this.host&&!validRoomCode(requested))throw new Error('4桁の数字、または以前の10文字のルームコードを入力してください。');
-  this.room=requested||String(crypto.getRandomValues(new Uint32Array(1))[0]%10000).padStart(4,'0');
+  if((requested&&!validRoomCode(requested))||(!this.host&&!requested))throw new Error('ルーム番号は4桁の数字を入力してください。');
   this.status='通信を接続中…';this.emit();
-  this.peer=new Peer(this.host?'komore-estates-'+this.room:undefined,{debug:0});
-  await new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>{this.peer.destroy();reject(new Error('接続がタイムアウトしました。通信環境を確認してください。'));},20000);
-   this.peer.once('open',id=>{clearTimeout(timer);this.id=id;resolve();});
-   this.peer.once('error',e=>{clearTimeout(timer);reject(new Error(e.type==='unavailable-id'?'このルーム番号は使用中です。別の4桁を指定してください。':'通信サーバーに接続できません: '+e.type));});
-  });
-  window.addEventListener('pagehide',()=>this.peer.destroy(),{once:true});
-  this.heartbeat=setInterval(()=>{if(this.closed)return;if(this.host){for(const [id,c] of this.connections){if(Date.now()-(this.lastSeen.get(id)||0)>18000)c.close();else if(c.open)c.send({type:'ping'});}}else if(this.connection?.open&&this.lastPing&&Date.now()-this.lastPing>22000){this.halted=true;this.connection.close();}},3000);
-  this.peer.on('error',e=>this.fail('通信エラー: '+e.type));
-  this.peer.on('disconnected',()=>{if(!this.closed){this.status='接続サーバーとの通信が切れました。既存の対戦は継続できます。';this.emit();}});
-  if(this.host){this.members=[{id:this.id,name:this.name,connected:true}];this.status='友だちの参加を待っています';this.peer.on('connection',c=>this.accept(c));this.broadcast();}
-  else {this.connection=this.peer.connect('komore-estates-'+this.room,{reliable:true,serialization:'json'});const c=this.connection;let accepted=false;const timer=setTimeout(()=>{if(!accepted){c.close();this.fail('参加できませんでした。コードとホストの接続を確認してください。');}},20000);c.on('open',()=>c.send({type:'join',name:this.name}));c.on('data',d=>{if(!d||typeof d!=='object')return;if(d.type==='ping'){this.lastPing=Date.now();if(c.open)c.send({type:'pong'});return;}if(d.type==='snapshot'){accepted=true;clearTimeout(timer);this.members=d.members;this.state=d.state;this.status=d.status;this.halted=d.halted;this.emit();}else if(d.type==='error'){clearTimeout(timer);this.fail(d.message);} });c.on('close',()=>{clearTimeout(timer);this.halted=true;this.fail('ホストとの接続が切れました。この対戦は再接続できません。新しいルームを作ってください。');});c.on('error',()=>this.fail('ルームに接続できません。'));}
+  const d=await this.request({op:this.host?'create':'join',room:requested,name:String(name).trim().slice(0,20)||'旅人'});
+  this.id=d.id;this.token=d.token;this.host=d.host;this.apply(d);this.poll();
  }
- accept(c){let joined=false;let last=0,count=0;const timer=setTimeout(()=>{if(!joined)c.close();},15000);
-  c.on('data',d=>{if(!d||typeof d!=='object'||JSON.stringify(d).length>2048){c.close();return;}const now=Date.now();if(now-last>1000){last=now;count=0;}if(++count>20){c.close();return;}
-   if(d.type==='join'&&!joined){if(this.state||this.members.length>=4||typeof d.name!=='string'||this.connections.has(c.peer)){c.send({type:'error',message:'開始済み、または満員です。'});setTimeout(()=>c.close(),200);return;}joined=true;clearTimeout(timer);this.connections.set(c.peer,c);this.lastSeen.set(c.peer,Date.now());this.members.push({id:c.peer,name:d.name.trim().slice(0,20)||'旅人',connected:true});this.broadcast();}
-   else if(joined&&d.type==='pong'){this.lastSeen.set(c.peer,Date.now());}
-   else if(joined&&d.type==='action'){this.dispatch(c.peer,d.action,d.revision);}
-  });
-  c.on('close',()=>{clearTimeout(timer);if(!joined)return;this.connections.delete(c.peer);if(this.state){const member=this.members.find(m=>m.id===c.peer);if(member)member.connected=false;this.halted=true;this.status='参加者が退出したため対戦を中断しました。退出して新しいルームを作ってください。';}else this.members=this.members.filter(m=>m.id!==c.peer);this.broadcast();});c.on('error',()=>{});
+ async poll(){
+  if(this.closed)return;
+  try{if(!this.busy)this.apply(await this.request({op:'poll'}));}catch(e){if(!this.closed)this.fail(e.message+' 自動で再接続しています。');}
+  if(!this.closed)this.timer=setTimeout(()=>this.poll(),1200);
  }
- broadcast(){const snapshot={type:'snapshot',members:this.members,state:this.state,status:this.status,halted:!!this.halted};for(const c of this.connections.values())if(c.open)c.send(snapshot);this.emit();}
- start(){if(!this.host||this.state||this.members.length<2)return;this.state=createGame(this.members);this.status='対戦中';this.broadcast();}
- dispatch(id,action,revision){if(!this.host||!this.state||this.halted)return;if(!action||!TYPES.has(action.type)||revision!==this.state.revision){this.error(id,'古い操作です。最新の盤面で操作してください。');return;}const clean={type:action.type};if(['build','sell','mortgage','redeem'].includes(clean.type)){if(!Number.isInteger(action.property)||action.property<0||action.property>39)return;clean.property=action.property;}if(clean.type==='bid'){if(!Number.isSafeInteger(action.amount)||action.amount<1||action.amount>1e9)return;clean.amount=action.amount;}
-  if(['offerTrade','counterTrade'].includes(clean.type)){clean.to=action.to;clean.give=action.give;clean.take=action.take;clean.giveCash=action.giveCash;clean.takeCash=action.takeCash;}
-  if(['counterTrade','acceptTrade','rejectTrade','cancelTrade'].includes(clean.type))clean.tradeId=action.tradeId;
-  const result=act(this.state,id,clean);if(!result.ok){this.error(id,result.error||'今はその操作ができません');return;}this.state=result.state;this.status='対戦中';this.broadcast();
+ async send(op,extra={}){
+  if(this.busy||this.closed)return;this.busy=true;
+  try{this.apply(await this.request({op,...extra}));}catch(e){this.fail(e.message);}finally{this.busy=false;}
  }
- error(id,message){if(id===this.id)this.fail(message);else this.connections.get(id)?.send({type:'error',message});}
- action(action){if(!this.state||this.halted)return;if(this.host)this.dispatch(this.id,action,this.state.revision);else if(this.connection?.open)this.connection.send({type:'action',action,revision:this.state.revision});}
-
- leave(){this.closed=true;clearInterval(this.heartbeat);this.peer?.destroy();location.href=location.pathname;}
+ start(){if(this.host&&!this.state)this.send('start');}
+ action(action){if(this.state&&!this.halted)this.send('action',{action,revision:this.state.revision});}
+ leave(){this.closed=true;clearTimeout(this.timer);if(this.token)fetch(RELAY_URL+'/api',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.token},body:JSON.stringify({op:'leave',room:this.room}),keepalive:true}).catch(()=>{});location.href=location.pathname;}
 }

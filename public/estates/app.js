@@ -3,7 +3,7 @@ import {SOLO_SAVE_KEY,readSoloSave,createSoloSave,writeSoloSave} from './solo-sa
 import {InfoCenter} from './about.js?v=guide-2';
 import {TradePanel} from './trade-view.js?v=trade-1';
 import {BOARD,act} from './engine.js?v=trade-1';
-import {EstateNetwork,normalizeRoomCode,validRoomCode} from './network.js?v=rooms-2';
+import {EstateNetwork,normalizeRoomCode,validRoomCode} from './network.js?v=relay-1';
 import {EstateSolo} from './solo.js?v=review-1';
 import {JourneyEffects} from './effects.js?v=resume-1';
 import {JourneyAudio} from './audio.js?v=immersive-1';
@@ -81,7 +81,7 @@ $('solo').onclick=async()=>{
  }catch{showSoloEntryError('保存データを読み込めませんでした。元のデータは変更していません。');}finally{soloOpening=false;}
 };
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);inspectionPinned=true;render();};
-$('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!validRoomCode($('code').value)){net.fail('4桁の数字、または以前の10文字のコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
+$('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!validRoomCode($('code').value)){net.fail('4桁の数字のルーム番号を入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
 $('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'TheRich',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
 function coordinates(i){if(i<=10)return[11-i,11];if(i<=20)return[1,21-i];if(i<=30)return[i-19,1];return[11,i-29];}
 function render(){
