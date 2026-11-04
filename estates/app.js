@@ -1,6 +1,6 @@
 import {tradable} from './trading.js?v=trade-1';
 import {SOLO_SAVE_KEY,readSoloSave,createSoloSave,writeSoloSave} from './solo-save.js?v=resume-1';
-import {InfoCenter} from './about.js?v=resume-1';
+import {InfoCenter} from './about.js?v=guide-2';
 import {TradePanel} from './trade-view.js?v=trade-1';
 import {BOARD,act} from './engine.js?v=trade-1';
 import {EstateNetwork,normalizeRoomCode,validRoomCode} from './network.js?v=rooms-2';
@@ -82,7 +82,7 @@ $('solo').onclick=async()=>{
 };
 $('tile-select').onchange=()=>{selected=Number($('tile-select').value);inspectionPinned=true;render();};
 $('create').onclick=()=>connect(false);$('join').onclick=()=>{if(!validRoomCode($('code').value)){net.fail('4桁の数字、または以前の10文字のコードを入力してください');return;}connect(true);};$('start').onclick=()=>net.start();$('leave').onclick=()=>info.leave();
-$('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'世界遺産トラベル',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
+$('share').onclick=async()=>{const url=$('share-url').value;try{if(navigator.share)await navigator.share({title:'TheRich',url});else{await navigator.clipboard.writeText(url);net.fail('招待リンクをコピーしました');}}catch{$('share-url').focus();$('share-url').select();net.fail('上のリンクを長押ししてコピーしてください');}};
 function coordinates(i){if(i<=10)return[11-i,11];if(i<=20)return[1,21-i];if(i<=30)return[i-19,1];return[11,i-29];}
 function render(){
  $('status').textContent=net.status;entryStatus.textContent=net.status==='未接続'?'':net.status;const joined=net.members.some(m=>m.id===net.id);$('entry').hidden=joined;if(!joined&&net.status!=='通信を接続中…')$('solo').disabled=$('create').disabled=$('join').disabled=false;$('lobby').hidden=!joined||!!net.state;$('game').hidden=!net.state;$('leave').hidden=!joined;
