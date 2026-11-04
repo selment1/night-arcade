@@ -33,3 +33,5 @@ header{align-items:center;flex-wrap:wrap}.sound-toggle{margin-left:auto;min-heig
 .space-sheet #property-actions:empty{display:none}
 .space-sheet #property-actions button{flex:1 1 30%;min-width:90px}
 .my-deeds>.trade-panel{box-shadow:none;margin-bottom:0;padding:12px}
+
+.invite-back{display:block;text-align:center;padding:14px;font-size:13px}
