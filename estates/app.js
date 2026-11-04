@@ -22,7 +22,17 @@ function dispatch(action){
 }
 let net=new EstateNetwork(render);window.estateNetwork=net;const info=new InfoCenter(()=>net,()=>{if(net.solo)net.schedule();});
 document.addEventListener('visibilitychange',()=>{if(net.solo){if(document.hidden)clearTimeout(net.timer);else net.schedule();}});
-const param=new URLSearchParams(location.search).get('room');if(param)$('code').value=param;
+const param=new URLSearchParams(location.search).get('room');
+const invitedRoom=param?.trim().toUpperCase();
+if(invitedRoom&&/^[A-F0-9]{10}$/.test(invitedRoom)){
+ $('code').value=invitedRoom;$('code').closest('label').hidden=true;
+ for(const n of $('entry').querySelectorAll('.cpu-choice,#solo,#create,.divider,.note'))n.hidden=true;
+ $('entry').querySelector('.entry-title').textContent='友だちの旅に参加';
+ $('join').textContent='この招待に参加';$('join').classList.remove('secondary');
+ const hint=document.createElement('p');hint.className='note';hint.textContent='ルーム番号の入力は不要です。ニックネームを確認して参加してください。';$('join').before(hint);
+ const back=document.createElement('a');back.href=location.pathname;back.textContent='招待を使わずに遊ぶ';back.className='invite-back';$('join').after(back);
+ net.status='招待リンクを受け取りました';
+}else if(param!==null){net.status='招待リンクが正しくありません。友だちに送り直してもらうか、ルームコードを入力してください。';}
 function button(label,fn,parent,disabled=false){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-label',label);b.disabled=disabled;b.onclick=fn;parent.append(b);return b;}
 async function connect(join){$('solo').disabled=$('create').disabled=$('join').disabled=true;try{await net.open(join?$('code').value:null,$('nickname').value);}catch(e){net.fail(e.message);net.peer?.destroy();$('solo').disabled=$('create').disabled=$('join').disabled=false;}}
 let soloLease=false,soloOpening=false,soloRecord=null,soloStarting=false,soloSaveFailed=false;
